@@ -2,124 +2,335 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
-@layer base {
-  :root {
-    --background: 210 40% 98%;
-    --foreground: 215 25% 15%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
-
-    --primary: 221 83% 53%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 215 25% 27%;
-
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-
-    --accent: 210 40% 96%;
-    --accent-foreground: 215 25% 27%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
-    --danger: 0 84% 60%;
-    --danger-foreground: 0 0% 100%;
-
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-
-    --radius: 0.75rem;
-
-    /* Course colors */
-    --course-algorithms: 221 83% 53%;
-    --course-os: 262 83% 58%;
-    --course-math: 38 92% 50%;
-    --course-databases: 142 71% 45%;
-
-    /* Shadows */
-    --shadow-card: 0 0 0 1px rgba(0,0,0,.05), 0 2px 4px rgba(0,0,0,.02), 0 10px 20px -5px rgba(0,0,0,.03);
-    --shadow-card-hover: 0 0 0 1px rgba(0,0,0,.05), 0 4px 8px rgba(0,0,0,.04), 0 16px 32px -8px rgba(0,0,0,.06);
-
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 215 25% 27%;
-    --sidebar-primary: 221 83% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 215 25% 27%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 221 83% 53%;
+:root {
+  font-family: Arial, sans-serif;
+  color: #29332e;
+  background: #fff;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 1160px;
+  margin: auto;
+  padding: 28px 24px;
+}
+header {
+  margin-bottom: 25px;
+}
+h1 {
+  font-size: 27px;
+  font-weight: 600;
+  margin: 0 0 7px;
+}
+h2 {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+a {
+  color: #305e47;
+  text-decoration: underline;
+}
+.muted,
+small {
+  color: #647069;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.panel {
+  background: white;
+  border-top: 1px solid #dce1db;
+  padding: 22px 0;
+  margin-bottom: 20px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 20px 0;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+label small {
+  font-size: 11px;
+  font-weight: 400;
+}
+input,
+select,
+button {
+  font: inherit;
+}
+input,
+select {
+  background: white;
+  border: 1px solid #bbc5bd;
+  border-radius: 3px;
+  color: #29332e;
+  padding: 9px;
+  width: 100%;
+  min-height: 39px;
+  font-size: 13px;
+}
+button {
+  cursor: pointer;
+  background: #365c46;
+  color: white;
+  border: 1px solid #365c46;
+  border-radius: 3px;
+  padding: 9px 13px;
+  font-size: 12px;
+}
+button:hover {
+  background: #294935;
+}
+button.secondary {
+  background: white;
+  color: #365c46;
+  border-color: #bcc9bf;
+}
+button.secondary:hover {
+  background: #f0f4ee;
+}
+button.plain {
+  background: transparent;
+  color: #536457;
+  border-color: transparent;
+  text-decoration: underline;
+}
+:focus-visible {
+  outline: 3px solid #86a990;
+  outline-offset: 3px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 13px;
+}
+.estimate-preview {
+  background: #f0f4ed;
+  padding: 11px 13px;
+  font-size: 13px;
+}
+.save-status {
+  color: #526653;
+  font-size: 12px;
+  margin: -7px 0 17px;
+}
+.assignment-list {
+  margin-top: 18px;
+}
+.assignment {
+  border-top: 1px solid #e0e5df;
+  padding: 18px 0;
+}
+.assignment:last-child {
+  padding-bottom: 0;
+}
+.assignment-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.assignment-header p {
+  font-size: 12px;
+  color: #647069;
+  margin: 5px 0;
+}
+.rank {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.assignment-values {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 650px;
+  gap: 15px;
+  margin: 13px 0;
+}
+dt {
+  font-size: 11px;
+  color: #647069;
+}
+dd {
+  font-size: 16px;
+  margin: 5px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.reasons {
+  font-size: 12px;
+}
+.availability-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.workload {
+  border-top: 1px solid #e0e5df;
+  padding-top: 16px;
+  font-size: 13px;
+}
+.badge {
+  display: inline-block;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.light {
+  color: #586954;
+  background: #eff2ec;
+}
+.moderate {
+  color: #3e603d;
+  background: #e8f0e4;
+}
+.heavy {
+  color: #826321;
+  background: #fcf2db;
+}
+.overloaded {
+  color: #944d37;
+  background: #f7e7df;
+}
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 1px solid #dce1db;
+  margin: 18px 0;
+}
+.day {
+  padding: 12px 9px;
+  border-right: 1px solid #dce1db;
+  min-width: 0;
+}
+.day:last-child {
+  border-right: 0;
+}
+.day h3 {
+  font-size: 12px;
+}
+.day > p {
+  font-size: 10px;
+  color: #647069;
+}
+.session {
+  border-top: 1px solid #e1e6de;
+  margin-top: 15px;
+  padding-top: 12px;
+  overflow-wrap: anywhere;
+}
+.session strong {
+  font-size: 12px;
+  display: block;
+  line-height: 1.5;
+  font-weight: 600;
+}
+.session small {
+  font-size: 10px;
+  display: block;
+}
+.session p {
+  font-size: 11px;
+  margin: 5px 0 0;
+}
+.empty {
+  color: #647069;
+  padding: 12px 0;
+}
+.notice {
+  background: #fff7e9;
+  border: 1px solid #e4d3b0;
+  padding: 13px 16px;
+  color: #785832;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 15px 0;
+}
+.notice ul {
+  list-style: disc;
+  padding-left: 22px;
+  margin: 8px 0;
+}
+.explanation p {
+  font-size: 13px;
+}
+.explanation .muted {
+  font-size: 12px;
+}
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  color: #647069;
+  font-size: 11px;
+}
+@media (max-width: 900px) {
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .week-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .day {
+    border-bottom: 1px solid #dce1db;
+  }
+  .availability-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
-
-@layer base {
-  * {
-    @apply border-border;
+@media (max-width: 550px) {
+  main {
+    padding: 20px 14px;
   }
-
-  body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+  .panel {
+    padding: 18px 0;
   }
-
-  h1, h2, h3, h4, h5, h6 {
-    @apply text-foreground font-semibold tracking-tight;
+  .form-grid {
+    grid-template-columns: 1fr;
   }
-}
-
-@layer utilities {
-  .font-mono-nums {
-    font-family: 'JetBrains Mono', monospace;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
+  .assignment-header {
+    flex-direction: column;
+    gap: 3px;
   }
-
-  .label-text {
-    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
+  .assignment-values {
+    grid-template-columns: 1fr 1fr;
   }
-
-  .shadow-card {
-    box-shadow: var(--shadow-card);
+  .week-grid {
+    grid-template-columns: 1fr 1fr;
   }
-
-  .shadow-card-hover {
-    box-shadow: var(--shadow-card-hover);
+  .day:nth-child(even) {
+    border-right: 0;
   }
-
-  .study-block-algorithms {
-    @apply bg-blue-50 border-blue-200 text-blue-900;
+  .availability-grid {
+    grid-template-columns: 1fr 1fr;
   }
-  .study-block-os {
-    @apply bg-violet-50 border-violet-200 text-violet-900;
-  }
-  .study-block-math {
-    @apply bg-amber-50 border-amber-200 text-amber-900;
-  }
-  .study-block-databases {
-    @apply bg-emerald-50 border-emerald-200 text-emerald-900;
-  }
-
-  .difficulty-high {
-    @apply bg-red-50 text-red-700;
-  }
-  .difficulty-medium {
-    @apply bg-orange-50 text-orange-700;
-  }
-  .difficulty-low {
-    @apply bg-blue-50 text-blue-700;
+  footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
   }
 }

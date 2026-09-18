@@ -1,303 +1,114 @@
-# StudyFlow Adaptive
+# Study Adapt — first-phase FURI prototype
 
-Build a modern web application prototype for a research project called:
+This is an early research prototype for estimating assignment study time and making a basic weekly plan. The goal is to show the core idea working before adding more features or evaluating it with students.
 
-Adaptive Study Scheduling System
+## Research idea
 
-The system is designed to help university students manage their academic workload using adaptive scheduling algorithms that adjust study plans based on assignments, deadlines, and performance signals.
+The prototype is inspired by Borchers and Pardos’ **Course Load Analytics** paper:
 
-This is a research prototype, so the focus is on a clean, intuitive interface that visualizes adaptive study plans rather than a fully functional backend.
+Borchers, C., & Pardos, Z. A. (2025). _Course Load Analytics Interventions on Higher Education Course Selection: Experimental Evidence._ Journal of Learning Analytics, 12(2), 293–311. https://doi.org/10.18608/jla.2025.8473
 
-Core Concept
+The paper looks at course workload information and its role in course selection and planning. It treats workload as more than credit hours or time: mental effort and psychological stress also matter. This prototype applies that workload idea at the **assignment level**. It does not reproduce the paper’s analytics, and the paper does not validate the formulas used here.
 
-Students input:
+## What works
 
-courses
+1. Enter an assignment name, course, due date, instructor estimated hours, grade weight, student difficulty, student stress, and progress.
+2. See the instructor estimate, adjusted planned total, and remaining time separately.
+3. See assignments ranked by priority with short reasons.
+4. Set daily study availability and receive a plan for the next seven days.
+5. Edit assignments or mark them complete. The estimates and plan update automatically.
 
-assignments
+There is one input form, one assignment list, one weekly plan, and a short plain-language explanation. The interface shows priority as an order (1, 2, 3), rather than presenting the internal score as a precise measurement. Full formulas are documented below. There are no dashboards, charts, accounts, or machine learning. Three example assignments appear on the first visit. Data is saved in this browser only.
 
-deadlines
+## How the estimate works
 
-estimated difficulty
+The instructor’s experience supplies the starting estimate. Student ratings add a small planning allowance:
 
-recent performance (quiz scores, grades)
+```text
+planned total = instructor hours ×
+  [1 + 0.10 × max(0, difficulty − 3) + 0.05 × max(0, stress − 3)]
 
-The system generates an adaptive weekly study schedule that dynamically adjusts workload distribution.
+remaining hours = planned total × (1 − progress / 100)
+```
 
-The interface should help students see:
+Difficulty and stress are each rated from 1 to 5. Ratings of 1–3 keep the starting estimate unchanged. Difficulty 4 adds 10%, difficulty 5 adds 20%; stress 4 adds 5%, stress 5 adds 10%. The allowances are added together, for a maximum increase of 30%.
 
-what to study
+**Example:** An instructor estimates 4 hours. Difficulty 5 and stress 5 give `4 × 1.30 = 5.2` planned hours. At 50% progress, 2.6 hours remain. At 100%, no study time is scheduled. Hours are rounded to two decimals.
 
-when to study
+These percentages are easy-to-change prototype assumptions. High stress does not necessarily mean a student will actually take longer. We use the allowance as planning room, not a measured prediction of performance or wellbeing.
 
-how workload changes over time
+## How priority works
 
-UI Design Style
+The score adds six contributions, up to 100 points:
 
-Use a modern, clean student productivity design similar to:
+| Input                | Contribution                        |
+| -------------------- | ----------------------------------- |
+| Deadline urgency     | `35 / (1 + max(0, days until due))` |
+| Remaining study time | `15 × min(remaining hours / 8, 1)`  |
+| Grade weight         | `20 × grade weight / 100`           |
+| Mental effort        | `10 × (difficulty − 1) / 4`         |
+| Stress               | `10 × (stress − 1) / 4`             |
+| Unfinished progress  | `10 × (1 − progress / 100)`         |
 
-Notion
+Completed assignments score zero. Ties use due date, then assignment ID. Reasons include due soon (within two days), overdue, high mental effort or stress (4–5), high grade weight (20% or more), low progress (below 25%), and long task (four or more hours remaining).
 
-Linear
+Due dates affect priority and placement, not the estimated amount of work. Dates refresh while the app is open or when it regains focus.
 
-Google Calendar
+## How the weekly plan works
 
-Todoist
+- Higher-priority assignments are placed first.
+- Each session goes on a day with enough available time before the deadline. Overdue assignments are marked and planned as recovery work.
+- The scheduler favors days with a lower fraction of their available hours used, with a small preference for earlier days. Its day score is `scheduled hours / available hours + 0.08 × days from today`; lower wins.
+- Difficulty or stress of 4–5 uses sessions up to 30 minutes. Other sessions are up to 60 minutes. Final sessions may be shorter. The display groups an assignment’s sessions on each day.
+- It never adds work beyond the daily time limit. Anything that cannot fit before a deadline or within seven days is listed as unallocated.
+- Availability repeats by weekday. Students choose start times and breaks themselves.
 
-Design characteristics:
+This is a greedy rule, not an optimizer. A different arrangement could fit more work. Assignments due after the week may be started early.
 
-minimalist layout
+## Workload labels
 
-soft colors
+Compare adjusted remaining hours with weekly availability: **light** is at most 50%, **moderate** is over 50% up to 85%, **heavy** is over 85% up to 100%, and **overloaded** is over 100%. No work is light; work with no available hours is overloaded.
 
-rounded UI elements
+The overall label compares all listed remaining work with one week of availability, including assignments due later. Daily labels use the hours actually allocated. Daily limits mean scheduled days cannot exceed 100%; unmet demand appears in the unallocated list. A deadline can be infeasible even if the overall week is light.
 
-responsive design
+Difficulty and stress already increased the planned hours. They are not multiplied into the workload label again.
 
-light mode
+## Run and check
 
-Color palette:
-
-Primary: soft blue (#3B82F6)
-Secondary: slate gray (#64748B)
-Accent: green for completed tasks (#22C55E)
-Warning: orange for approaching deadlines (#F59E0B)
-
-Main Pages
-
-1. Dashboard (Home)
-
-Purpose: show student's current workload overview
-
-Sections:
-
-Top summary cards:
-
-Upcoming Assignments
-
-Study Hours Scheduled This Week
-
-Courses Being Tracked
-
-Workload Balance Score
-
-Center section:
-
-Weekly Adaptive Study Schedule
-
-Calendar style layout showing:
-
-Monday – Sunday study blocks.
-
-Example:
-
-Mon
-2pm – Algorithms study
-5pm – Data Structures homework
-
-Tue
-3pm – Linear Algebra review
-
-Each block shows:
-
-course name
-task
-estimated time
-
-Right side panel:
-
-Upcoming Deadlines
-
-Example:
-
-CSE340 Project – 3 days
-Math Quiz – 5 days
-Operating Systems Lab – 6 days
-
-2. Courses Page
-
-Shows all courses student is taking.
-
-Each course card contains:
-
-Course name
-Instructor
-Assignments count
-Average performance
-Workload difficulty indicator
-
-Clicking a course opens:
-
-Course detail page showing:
-
-assignments
-
-deadlines
-
-performance metrics
-
-recommended study sessions
-
-3. Assignments Page
-
-Table layout with:
-
-Assignment Name
-Course
-Deadline
-Difficulty
-Estimated Hours
-Status
-
-Allow:
-
-Add assignment
-Edit assignment
-Mark complete
-
-Color code:
-
-Green – completed
-Yellow – upcoming
-Red – urgent
-
-4. Adaptive Study Plan Page
-
-This page shows how the system distributes study time.
-
-Two views:
-
-Weekly Plan
-
-Calendar grid with recommended study blocks.
-
-Workload Distribution Chart
-
-Graph showing hours allocated per course.
-
-Example:
-
-Algorithms — 6 hours
-Operating Systems — 4 hours
-Math — 3 hours
-
-5. Performance Page
-
-Shows how performance affects scheduling.
-
-Graphs:
-
-quiz score trends
-
-assignment completion time
-
-recommended study hours
-
-Example:
-
-"If performance drops in a course, the system increases recommended study time."
-
-Adaptive Logic (Simulation)
-
-For the prototype simulate logic like:
-
-If assignment deadline < 3 days
-→ increase study block priority
-
-If performance < 70%
-→ add additional review session
-
-If workload > 6 hours/day
-→ redistribute tasks across week
-
-Components Needed
-
-Create reusable UI components:
-
-CourseCard
-
-AssignmentTable
-
-StudyBlock
-
-DeadlineAlert
-
-PerformanceChart
-
-WorkloadGraph
-
-Charts
-
-Include charts using:
-
-bar charts
-
-line charts
-
-workload distribution pie chart
-
-Prototype Data
-
-Prepopulate with example student data.
-
-Courses:
-
-Algorithms
-Operating Systems
-Linear Algebra
-Databases
-
-Example assignments:
-
-Algorithms Project – difficulty high – due in 4 days
-OS Lab – medium – due in 2 days
-Math Quiz – low – due in 5 days
-
-UX Goals
-
-The system should make it easy for students to:
-
-understand their workload
-
-see recommended study sessions
-
-anticipate deadlines
-
-avoid cramming
-
-Output
-
-Create a working interactive UI prototype with:
-
-navigation sidebar
-
-dashboard
-
-calendar view
-
-assignment management
-
-charts and analytics
-
-Focus on visualizing adaptive scheduling, not implementing the full algorithm.
-
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/c6e31337-6e80-44f7-bf78-0775fcbf33b0).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Use Node.js 20+ and npm:
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+npm ci
 npm run dev
 ```
+
+Open http://localhost:8080.
+
+```sh
+npm run build
+npm test
+npm run lint
+npx tsc --noEmit -p tsconfig.app.json
+```
+
+Browser tests cover assignment entry, the 4-to-5.2-hour example, progress, persistence, completion, deletion, zero capacity, and desktop/mobile layout:
+
+```sh
+npx playwright install chromium
+npm run test:e2e
+```
+
+## Main files
+
+- `src/lib/scheduler.ts`: time estimates, priority, workload labels, and scheduling.
+- `src/lib/study-state.ts`: input validation, browser storage, and example assignments.
+- `src/components/TaskEditor.tsx`: inline assignment form.
+- `src/components/ResearchAssignments.tsx`: ranked assignment list.
+- `src/components/ResearchWeek.tsx`: weekly sessions.
+- `src/App.tsx`: connects inputs to the plan and explains the method.
+
+The browser storage key remains `study-adapt-research-v1` so earlier saved assignments can still load. Their estimated-hours field is now the instructor baseline; review it if it previously represented a personal estimate. Earlier time-spent logs are no longer used or retained. The current phase uses progress only. The old MVP pages/components remain in the repository but are not rendered by this app.
+
+## Future work
+
+Test the assumptions with students and instructors, compare planned time with actual time, and refine the rating allowances. Study whether the plan is useful and manageable before claiming better outcomes. Task dependencies, calendar integration, fixed-versus-adaptive evaluation, shared instructor input, and cross-device storage are future work. Progress estimates are subjective, and this version assumes time decreases proportionally with progress.
