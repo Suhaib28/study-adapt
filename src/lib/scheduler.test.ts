@@ -4,6 +4,7 @@ import {
   buildPlan,
   daysBetween,
   plannedHours,
+  maxRemainingHours,
   priority,
   remainingHours,
   Task,
@@ -26,8 +27,8 @@ describe("remaining time and priority", () => {
   it("starts with instructor time and adds only high-rating allowances", () => {
     expect(plannedHours(task)).toBe(4);
     expect(plannedHours({ ...task, effort: 1, stress: 1 })).toBe(4);
-    expect(plannedHours({ ...task, effort: 4 })).toBe(4.4);
-    expect(plannedHours({ ...task, stress: 4 })).toBe(4.2);
+    expect(plannedHours({ ...task, effort: 4 })).toBe(4.36);
+    expect(plannedHours({ ...task, stress: 4 })).toBe(4.24);
     expect(plannedHours({ ...task, effort: 5, stress: 5 })).toBe(5.2);
     expect(
       remainingHours({ ...task, effort: 5, stress: 5, progress: 50 }),
@@ -35,7 +36,7 @@ describe("remaining time and priority", () => {
     expect(remainingHours({ ...task, progress: 100 })).toBe(0);
   });
   it("increases priority for each workload signal and approaching deadlines", () => {
-    const score = priority(task, today).score;
+    const score = priority(task, today, 8).score;
     for (const change of [
       { estimatedHours: 8 },
       { gradeWeight: 80 },
@@ -43,14 +44,88 @@ describe("remaining time and priority", () => {
       { stress: 5 },
       { dueDate: today },
     ])
-      expect(priority({ ...task, ...change }, today).score).toBeGreaterThan(
+      expect(priority({ ...task, ...change }, today, 8).score).toBeGreaterThan(
         score,
       );
-    expect(priority({ ...task, progress: 50 }, today).score).toBeLessThan(
+    expect(priority({ ...task, progress: 50 }, today, 8).score).toBeLessThan(
       score,
     );
-    expect(priority(task, addDays(today, 5)).score).toBeGreaterThan(score);
-    expect(priority({ ...task, progress: 100 }, today).score).toBe(0);
+    expect(priority(task, addDays(today, 5), 8).score).toBeGreaterThan(score);
+    expect(priority({ ...task, progress: 100 }, today, 8).score).toBe(0);
+  });
+});
+describe("normalized four-term priority", () => {
+  it("matches a hand-calculated example and only exposes four contributions", () => {
+    const result = priority(
+      { ...task, dueDate: addDays(today, 1), gradeWeight: 50, progress: 50 },
+      today,
+      4,
+    );
+    expect(result.parts).toEqual({
+      urgency: 0.2,
+      grade: 0.125,
+      workload: 0.1,
+      progress: 0.075,
+    });
+    expect(result.score).toBeCloseTo(0.5);
+  });
+  it("does not directly count difficulty or stress again", () => {
+    const highRatings = { ...task, effort: 5, stress: 5 };
+    const sameAdjustedWork = { ...task, estimatedHours: 5.2 };
+    expect(remainingHours(highRatings)).toBe(remainingHours(sameAdjustedWork));
+    expect(priority(highRatings, today, 5.2).score).toBe(
+      priority(sameAdjustedWork, today, 5.2).score,
+    );
+    expect(priority({ ...task, effort: 1, stress: 2 }, today, 5.2).score).toBe(
+      priority(task, today, 5.2).score,
+    );
+  });
+  it("normalizes against current remaining work and excludes completed work from the maximum", () => {
+    const longer = { ...task, id: "longer", estimatedHours: 8 };
+    const tasks = [
+      task,
+      longer,
+      { ...task, id: "done", estimatedHours: 200, progress: 100 },
+    ];
+    expect(maxRemainingHours(tasks)).toBe(8);
+    expect(priority(task, today, maxRemainingHours(tasks)).parts.workload).toBe(
+      0.1,
+    );
+    expect(maxRemainingHours([task, { ...longer, progress: 75 }])).toBe(4);
+    expect(priority(task, today, 4).parts.workload).toBe(0.2);
+    expect(maxRemainingHours([])).toBe(0);
+  });
+  it("handles completed work, zero denominators and overdue dates without invalid scores", () => {
+    const done = { ...task, progress: 100 };
+    expect(maxRemainingHours([done])).toBe(0);
+    expect(priority(done, today, 0).score).toBe(0);
+    expect(
+      Object.values(priority(done, today, 0).parts).every((n) => n === 0),
+    ).toBe(true);
+    expect(priority(task, today, 0).parts.workload).toBe(0);
+    const overdue = priority(
+      { ...task, dueDate: addDays(today, -1) },
+      today,
+      4,
+    );
+    expect(overdue.parts.urgency).toBe(0.4);
+    expect(overdue.score).toBeLessThanOrEqual(1);
+  });
+  it("uses the same normalized priority ordering for session allocation", () => {
+    const urgent = { ...task, id: "urgent", dueDate: today, estimatedHours: 1 };
+    const large = { ...task, id: "large", estimatedHours: 8 };
+    const maximum = maxRemainingHours([large, urgent]);
+    expect(priority(urgent, today, maximum).score).toBeGreaterThan(
+      priority(large, today, maximum).score,
+    );
+    const plan = buildPlan([large, urgent], [0, 1, 0, 0, 0, 0, 0], today);
+    expect(plan.days[0].sessions).toEqual([{ taskId: "urgent", hours: 1 }]);
+  });
+  it("uses continuous workload boundaries with no gaps between labels", () => {
+    expect(workloadLabel(0.5001, 1)).toBe("Moderate");
+    expect(workloadLabel(0.8, 1)).toBe("Moderate");
+    expect(workloadLabel(0.8001, 1)).toBe("Heavy");
+    expect(workloadLabel(1.0001, 1)).toBe("Overloaded");
   });
 });
 describe("scheduling constraints", () => {
@@ -137,7 +212,7 @@ describe("scheduling constraints", () => {
   });
 });
 it("classifies adjusted time against availability without counting ratings twice", () => {
-  expect([0, 0.5, 0.85, 1, 1.01].map((n) => workloadLabel(n, 1))).toEqual([
+  expect([0, 0.5, 0.8, 1, 1.01].map((n) => workloadLabel(n, 1))).toEqual([
     "Light",
     "Light",
     "Moderate",

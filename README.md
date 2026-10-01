@@ -20,58 +20,180 @@ The paper looks at course workload information and its role in course selection 
 
 There is one input form, one assignment list, one weekly plan, and a short plain-language explanation. The interface shows priority as an order (1, 2, 3), rather than presenting the internal score as a precise measurement. Full formulas are documented below. There are no dashboards, charts, accounts, or machine learning. Three example assignments appear on the first visit. Data is saved in this browser only.
 
-## How the estimate works
+## Algorithm Specification
 
-The instructor’s experience supplies the starting estimate. Student ratings add a small planning allowance:
+### 1. Goal and research basis
+
+Estimate how much study time an assignment may need, rank unfinished assignments, and place study sessions within the student's available hours. The instructor estimate is the baseline; student difficulty and stress ratings adjust it. This specification describes the implemented first-phase rules, not a trained or validated prediction model.
+
+The [Course Load Analytics study by Borchers and Pardos (2025)](https://doi.org/10.18608/jla.2025.8473) supports considering time load, mental effort, and psychological stress together. Mental effort was especially influential in students' course choices. We use this as a reason to give difficulty a larger allowance than stress. Applying those course-level ideas to individual assignments is our prototype design decision.
+
+The supporting workload survey study, [Pardos, Borchers, and Yu (2023), _Credit hours is not enough_](https://doi.org/10.1016/j.iheduc.2022.100882), used five-point response options for course workload questions, except the question asking for actual weekly hours. This provides precedent for a short five-point student self-rating. It does not establish our exact labels, adjustment percentages, or priority weights.
+
+### 2. Inputs and variables
+
+For each assignment `i`:
+
+| Symbol                    | Meaning and units                                     | Implementation                                               |
+| ------------------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
+| `E_i`                     | Instructor estimated total hours, 0.25–200            | `task.estimatedHours`                                        |
+| `D_i`                     | Student difficulty / mental effort, integer 1–5       | `task.effort`                                                |
+| `S_i`                     | Student stress, integer 1–5                           | `task.stress`                                                |
+| `P_i`                     | Fraction completed, 0–1                               | `task.progress / 100`; form stores percent 0–100             |
+| `G_i`                     | Normalized grade weight, 0–1                          | `task.gradeWeight / 100`; form stores percent 0–100          |
+| `days_i`                  | Signed calendar days from today to due date           | `daysBetween(today, task.dueDate)`                           |
+| `difficulty_adjustment_i` | Fractional difficulty allowance                       | `0.09 × max(0, D_i − 3)`                                     |
+| `stress_adjustment_i`     | Fractional stress allowance                           | `0.06 × max(0, S_i − 3)`                                     |
+| `T_i`                     | Adjusted planned total hours                          | `plannedHours(task)`                                         |
+| `R_i`                     | Remaining adjusted hours                              | `remainingHours(task)`                                       |
+| `M = max(R)`              | Largest remaining hours in the current assignment set | `maxRemainingHours(tasks)`                                   |
+| `U_i`                     | Urgency, 0–1                                          | Defined below                                                |
+| `L_i`                     | Fraction of work unfinished, 0–1                      | `1 − P_i`                                                    |
+| `W_i`                     | Relative remaining workload, 0–1                      | `R_i / M`, or zero if `M = 0`                                |
+| `Priority_i`              | Internal unitless ranking score, 0–1                  | `priority(task, today, M).score`                             |
+| `A_d`                     | Available study hours on day `d`, 0–12                | Weekday availability, indexed Sunday 0 through Saturday 6    |
+| `H_d`                     | Hours already placed on day `d`                       | `PlanDay.hours`, initially zero                              |
+| `k_d`                     | Calendar-day offset from today, 0–6                   | Used to prefer earlier days                                  |
+| `B_i`                     | Maximum session length in hours                       | 0.5 for high difficulty/stress; otherwise 1                  |
+| `q`                       | Hours allocated in one session                        | Minimum of remaining task hours, `B_i`, and free daily hours |
+| `A_week`                  | Total hours available in the seven-day plan           | Sum of `A_d`                                                 |
+| `weekly_load_ratio`       | All remaining adjusted hours / weekly available hours | Used for overall workload label                              |
+
+Names and courses must be nonempty; IDs must be unique; due dates must be valid local calendar dates. Grade weight is normalized by 100, **not** by the largest grade weight or the sum across courses. Ungraded work may use zero. Ratings, ranges, and saved data are checked in `src/lib/study-state.ts` before scheduling.
+
+### 3. Rating scale and why it is 1–5
+
+| Rating | Label     | Interpretation in this prototype              |
+| ------ | --------- | --------------------------------------------- |
+| 1      | Very low  | Below normal; no reduction to instructor time |
+| 2      | Low       | Below normal; no reduction to instructor time |
+| 3      | Normal    | Neutral reference point; no added allowance   |
+| 4      | High      | One step above normal                         |
+| 5      | Very high | Two steps above normal                        |
+
+Five choices keep student input short and give two levels on either side of a midpoint. The survey precedent above supports using a five-point format. **Treating 3 as normal is our operational definition**, not a claim that a survey has proven 3 to be a universal neutral workload. Students should rate relative to what feels normal for them. Stress 3 does not mean no stress.
+
+Ratings above 3 add planning room. Ratings below 3 do not reduce instructor time in this first version because we do not yet have evidence for how much time to subtract. Treating adjacent rating steps as equal increments is another simplifying assumption: these self-ratings are ordinal, not measured hour differences.
+
+### 4. Adjusted and remaining time
 
 ```text
-planned total = instructor hours ×
-  [1 + 0.10 × max(0, difficulty − 3) + 0.05 × max(0, stress − 3)]
+difficulty_adjustment_i = max(0, D_i − 3) × 0.09
+stress_adjustment_i     = max(0, S_i − 3) × 0.06
 
-remaining hours = planned total × (1 − progress / 100)
+T_i = E_i × (1 + difficulty_adjustment_i + stress_adjustment_i)
+    = E_i × (1 + 0.09 × max(0, D_i − 3) + 0.06 × max(0, S_i − 3))
+
+R_i = T_i × (1 − P_i)
 ```
 
-Difficulty and stress are each rated from 1 to 5. Ratings of 1–3 keep the starting estimate unchanged. Difficulty 4 adds 10%, difficulty 5 adds 20%; stress 4 adds 5%, stress 5 adds 10%. The allowances are added together, for a maximum increase of 30%.
+Difficulty gets 9% per above-normal step and stress gets 6%. The larger difficulty allowance reflects the emphasis on mental effort in the CLA paper; stress still contributes. The **exact 9% and 6% are prototype assumptions**, not coefficients estimated by the paper. With both ratings at 5, `2 × 0.09 + 2 × 0.06 = 0.30`: the multiplier stays between 1.00 and 1.30. Allowances are additive, not compounded.
 
-**Example:** An instructor estimates 4 hours. Difficulty 5 and stress 5 give `4 × 1.30 = 5.2` planned hours. At 50% progress, 2.6 hours remain. At 100%, no study time is scheduled. Hours are rounded to two decimals.
+Implementation rounds `T_i` to two decimal hours, then calculates and rounds `R_i` from that rounded total. Progress assumes time decreases proportionally with completion. Due dates and grade weights never change `T_i`. Completed assignments (`P_i = 1`) have `R_i = 0` and receive no sessions.
 
-These percentages are easy-to-change prototype assumptions. High stress does not necessarily mean a student will actually take longer. We use the allowance as planning room, not a measured prediction of performance or wellbeing.
+### 5. Priority formula and normalization
 
-## How priority works
+```text
+U_i = 1 / (max(0, days_i) + 1)
+L_i = 1 − P_i
+M   = max(R_i across all current assignments), or 0 for an empty set
+W_i = R_i / M if M > 0, otherwise 0
 
-The score adds six contributions, up to 100 points:
+Priority_i = 0.40 × U_i
+           + 0.25 × G_i
+           + 0.20 × W_i
+           + 0.15 × L_i
+```
 
-| Input                | Contribution                        |
-| -------------------- | ----------------------------------- |
-| Deadline urgency     | `35 / (1 + max(0, days until due))` |
-| Remaining study time | `15 × min(remaining hours / 8, 1)`  |
-| Grade weight         | `20 × grade weight / 100`           |
-| Mental effort        | `10 × (difficulty − 1) / 4`         |
-| Stress               | `10 × (stress − 1) / 4`             |
-| Unfinished progress  | `10 × (1 − progress / 100)`         |
+For nonnegative days, urgency is exactly `1 / (days_i + 1)`. Overdue dates are clamped to zero to avoid division by zero or negative urgency; overdue and due-today assignments both have `U_i = 1`. Completed assignments override all four contributions and the final score to zero.
 
-Completed assignments score zero. Ties use due date, then assignment ID. Reasons include due soon (within two days), overdue, high mental effort or stress (4–5), high grade weight (20% or more), low progress (below 25%), and long task (four or more hours remaining).
+| Weight                   | Why it is used                                                  |
+| ------------------------ | --------------------------------------------------------------- |
+| Urgency: 0.40            | Deadlines matter most for deciding what needs attention first.  |
+| Grade weight: 0.25       | Higher-stakes work comes next.                                  |
+| Remaining workload: 0.20 | Larger unfinished assignments need room in the plan.            |
+| Progress left: 0.15      | Less-complete work gets an additional, smaller priority signal. |
 
-Due dates affect priority and placement, not the estimated amount of work. Dates refresh while the app is open or when it regains focus.
+The weights sum to 1 and represent our initial design priorities. They are not fitted research results. Difficulty and stress have **no direct priority terms**; their effect comes through `T_i`, then `R_i` and `W_i`. Progress intentionally affects both remaining hours and the explicit progress-left term, as specified for this version.
 
-## How the weekly plan works
+Both the assignment list and session scheduler compute `M` from the same full set of current assignments before sorting. Completed assignments contribute zero to `M`. The denominator stays fixed during that planning pass; it is not recalculated as sessions are allocated. Task or progress edits recompute it. Adding a large assignment can therefore change other assignments' relative priority. If only one unfinished assignment exists, its workload score is 1.
 
-- Higher-priority assignments are placed first.
-- Each session goes on a day with enough available time before the deadline. Overdue assignments are marked and planned as recovery work.
-- The scheduler favors days with a lower fraction of their available hours used, with a small preference for earlier days. Its day score is `scheduled hours / available hours + 0.08 × days from today`; lower wins.
-- Difficulty or stress of 4–5 uses sessions up to 30 minutes. Other sessions are up to 60 minutes. Final sessions may be shorter. The display groups an assignment’s sessions on each day.
-- It never adds work beyond the daily time limit. Anything that cannot fit before a deadline or within seven days is listed as unallocated.
-- Availability repeats by weekday. Students choose start times and breaks themselves.
+Scores are kept at JavaScript floating-point precision for sorting, not rounded to two decimals. Sort by descending score, then ascending due date, then ID. The UI displays the resulting rank (1, 2, 3), not the internal score. Completed assignments remain visible at the end of the list.
 
-This is a greedy rule, not an optimizer. A different arrangement could fit more work. Assignments due after the week may be started early.
+Reasons are explanatory labels, not extra score bonuses: due soon (at most two days), overdue, high grade weight (at least 20%), low progress (below 25%), long task (at least four remaining hours), and high effort/stress (4–5). High-rating reasons explicitly describe a **time allowance**, rather than a separate priority contribution.
 
-## Workload labels
+### 6. Weekly workload labels
 
-Compare adjusted remaining hours with weekly availability: **light** is at most 50%, **moderate** is over 50% up to 85%, **heavy** is over 85% up to 100%, and **overloaded** is over 100%. No work is light; work with no available hours is overloaded.
+```text
+A_week = sum(A_d for the next seven days)
+weekly_load_ratio = sum(R_i for all current assignments) / A_week
+```
 
-The overall label compares all listed remaining work with one week of availability, including assignments due later. Daily labels use the hours actually allocated. Daily limits mean scheduled days cannot exceed 100%; unmet demand appears in the unallocated list. A deadline can be infeasible even if the overall week is light.
+| Ratio                 | Label      |
+| --------------------- | ---------- |
+| `0 ≤ ratio ≤ 0.50`    | Light      |
+| `0.50 < ratio ≤ 0.80` | Moderate   |
+| `0.80 < ratio ≤ 1.00` | Heavy      |
+| `ratio > 1.00`        | Overloaded |
 
-Difficulty and stress already increased the planned hours. They are not multiplied into the workload label again.
+These continuous intervals implement the requested 0.00–0.50 / 0.51–0.80 / 0.81–1.00 labels without gaps for ratios such as 0.505. Classify before rounding the ratio. If no time is available: no remaining work is light; positive remaining work is overloaded.
+
+The overall label includes all remaining assignments, including those due beyond this week. Daily labels use `H_d / A_d`, the time actually placed. Scheduled days cannot exceed capacity; work that cannot fit is shown as unallocated. A near deadline can be infeasible even when the week is light. Ratings already affect remaining hours and are not multiplied into the ratio again. Label thresholds are descriptive prototype choices, not validated stress or health thresholds.
+
+### 7. Session allocation procedure
+
+1. Create seven days beginning with the student's local date. Initialize each `H_d` to zero and read recurring weekday availability.
+2. Compute adjusted remaining hours, `M`, and priorities; sort unfinished assignments as described above.
+3. For each assignment, set local remaining work to `R_i`.
+4. Eligible days have free capacity and are on or before the due date. Already-overdue assignments may use any of the seven days as recovery work; show a warning.
+5. Choose the eligible day with the lowest `H_d / A_d + 0.08 × k_d`. Break ties by earlier date. This favors less-full days with a small preference for earlier study.
+6. Set `B_i = 0.5` hours if difficulty or stress is at least 4; otherwise `B_i = 1` hour. Allocate `q = min(local remaining work, B_i, A_d − H_d)` and round it to two decimals.
+7. Record the session, increase `H_d`, subtract `q` from local remaining work, and repeat until finished or no eligible capacity remains. Record any leftover hours as unallocated.
+
+Difficulty/stress still select session length; this is a placement rule, not an extra priority weight. Students choose their own start times and breaks. Final sessions may be shorter than the limit. Assignments due beyond seven days may start early.
+
+### 8. Other implementation constants and assumptions
+
+| Constant or rule       | Value and reason                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Planning horizon       | 7 days: one simple weekly plan.                                                                                                                 |
+| Earlier-day preference | 0.08 per day: a small tie-balancing preference, not a learned value.                                                                            |
+| High-rating threshold  | 4: first level above the normal reference of 3.                                                                                                 |
+| Session limits         | 0.5 / 1 hour: simple short/standard study blocks; not proven optimal lengths.                                                                   |
+| Numeric rounding       | Nearest 0.01 hour for planned, remaining, available, allocated, and daily hours; prevents floating-point accumulation in allocations.           |
+| Allocation tolerance   | 0.001 hour: numerical guard below the 0.01-hour resolution, not a scheduling allowance.                                                         |
+| Input limits           | Instructor hours 0.25–200; daily hours 0–12; grade/progress 0–100; ratings integer 1–5. Practical form guardrails, not research-derived bounds. |
+| Form increments        | Hours 0.25; grade percent 0.1; progress percent 1. Simple input controls; computed sessions may have finer remainders.                          |
+| Date handling          | Local calendar dates; UTC midnight differences for day counts to avoid daylight-saving shifts; no due-time-of-day input.                        |
+| Date refresh           | Every 30 seconds and on window focus; refresh priorities when the local date changes.                                                           |
+
+### 9. Example calculation
+
+```text
+E_i = 4 hours, D_i = 5, S_i = 5
+
+difficulty_adjustment_i = (5 − 3) × 0.09 = 0.18
+stress_adjustment_i     = (5 − 3) × 0.06 = 0.12
+multiplier             = 1 + 0.18 + 0.12 = 1.30
+T_i                    = 4 × 1.30 = 5.2 hours
+
+P_i = 50 / 100 = 0.50
+R_i = 5.2 × (1 − 0.50) = 2.6 hours
+```
+
+For a separate priority check, suppose an assignment has `R_i = 2h`, `M = 4h`, is due tomorrow, has grade weight 50%, and progress 50%:
+
+```text
+U_i = 1 / (1 + 1) = 0.5
+G_i = 0.5, W_i = 2 / 4 = 0.5, L_i = 0.5
+Priority_i = 0.40(0.5) + 0.25(0.5) + 0.20(0.5) + 0.15(0.5) = 0.5
+```
+
+### 10. Limitations
+
+Instructor estimates and student ratings may be inaccurate. The five categories are subjective; normal can mean different things to different students. Extra stress does not necessarily cause extra working time. The 30% cap, linear progress assumption, priority weights, session lengths, and workload thresholds all need evaluation. Normalizing to the largest task makes priority relative to the current assignment set. Very small remaining amounts may round to zero without the task being marked complete.
+
+This is a greedy scheduler, not a global optimizer: another arrangement could fit more work. It does not model dependencies, breaks, exact clock times, calendar conflicts, or learning outcomes. The research supports the workload dimensions and survey format; it does not prove this assignment scheduler improves grades or wellbeing.
 
 ## Run and check
 

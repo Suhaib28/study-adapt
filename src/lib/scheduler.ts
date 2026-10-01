@@ -41,8 +41,8 @@ export function daysBetween(from: string, to: string): number {
 }
 // Only high ratings add a small planning allowance; these are prototype weights.
 export function plannedHours(task: Task): number {
-  const difficultyAllowance = 0.1 * Math.max(0, task.effort - 3);
-  const stressAllowance = 0.05 * Math.max(0, task.stress - 3);
+  const difficultyAllowance = 0.09 * Math.max(0, task.effort - 3);
+  const stressAllowance = 0.06 * Math.max(0, task.stress - 3);
   return round(
     task.estimatedHours * (1 + difficultyAllowance + stressAllowance),
   );
@@ -50,37 +50,44 @@ export function plannedHours(task: Task): number {
 export function remainingHours(task: Task): number {
   return round(plannedHours(task) * (1 - task.progress / 100));
 }
-export function priority(task: Task, today: string) {
+export function maxRemainingHours(tasks: Task[]): number {
+  return tasks.reduce(
+    (maximum, task) => Math.max(maximum, remainingHours(task)),
+    0,
+  );
+}
+export function priority(task: Task, today: string, maxRemaining: number) {
   const days = daysBetween(today, task.dueDate);
   const remaining = remainingHours(task);
+  const completed = task.progress >= 100;
+  // Clamp overdue dates to zero; normalize workload across the full assignment set.
+  const urgency = 1 / (Math.max(0, days) + 1);
+  const grade = task.gradeWeight / 100;
+  const workload = maxRemaining > 0 ? remaining / maxRemaining : 0;
+  const progressLeft = 1 - task.progress / 100;
+  // Effort and stress only enter through adjusted remaining time, not extra terms.
   const parts = {
-    urgency: 35 / (1 + Math.max(0, days)),
-    time: 15 * Math.min(remaining / 8, 1),
-    grade: (20 * task.gradeWeight) / 100,
-    effort: (10 * (task.effort - 1)) / 4,
-    stress: (10 * (task.stress - 1)) / 4,
-    progress: 10 * (1 - task.progress / 100),
+    urgency: completed ? 0 : 0.4 * urgency,
+    grade: completed ? 0 : 0.25 * grade,
+    workload: completed ? 0 : 0.2 * workload,
+    progress: completed ? 0 : 0.15 * progressLeft,
   };
   const reasons = [
     days < 0 ? "Overdue" : days <= 2 ? "Due soon" : "",
-    task.effort >= 4 ? "High mental effort" : "",
+    task.effort >= 4 ? "High mental effort (time allowance)" : "",
     task.gradeWeight >= 20 ? "High grade weight" : "",
-    task.stress >= 4 ? "High stress/load" : "",
+    task.stress >= 4 ? "High stress/load (time allowance)" : "",
     task.progress < 25 ? "Low progress" : "",
     remaining >= 4 ? "Long task" : "",
   ].filter(Boolean);
   return {
-    score:
-      remaining === 0
-        ? 0
-        : round(Object.values(parts).reduce((a, b) => a + b, 0)),
+    score: Object.values(parts).reduce((a, b) => a + b, 0),
     parts,
-    reasons:
-      remaining === 0
-        ? ["Completed"]
-        : reasons.length
-          ? reasons
-          : ["Steady progress"],
+    reasons: completed
+      ? ["Completed"]
+      : reasons.length
+        ? reasons
+        : ["Steady progress"],
     remaining,
     days,
   };
@@ -89,7 +96,7 @@ export function workloadLabel(load: number, capacity: number) {
   const ratio = capacity > 0 ? load / capacity : load > 0 ? Infinity : 0;
   return ratio > 1
     ? "Overloaded"
-    : ratio > 0.85
+    : ratio > 0.8
       ? "Heavy"
       : ratio > 0.5
         ? "Moderate"
@@ -110,12 +117,14 @@ export function buildPlan(
       sessions: [],
     };
   });
+  const maxRemaining = maxRemainingHours(tasks);
   const ranked = tasks
     .filter((t) => t.progress < 100)
     .slice()
     .sort(
       (a, b) =>
-        priority(b, today).score - priority(a, today).score ||
+        priority(b, today, maxRemaining).score -
+          priority(a, today, maxRemaining).score ||
         a.dueDate.localeCompare(b.dueDate) ||
         a.id.localeCompare(b.id),
     );

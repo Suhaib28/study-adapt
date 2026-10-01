@@ -216,27 +216,28 @@ export default function App() {
         <h2 id="explanation-heading">Why the plan looks this way</h2>
         <p>
           <strong>Estimated time:</strong> start with the instructor’s hours.
-          Difficulty ratings of 4 or 5 add 10% or 20%; stress ratings of 4 or 5
-          add 5% or 10%. Progress reduces the remaining time.
+          Difficulty ratings of 4 or 5 add 9% or 18%; stress ratings of 4 or 5
+          add 6% or 12%. Progress reduces the remaining time.
         </p>
         <p>
-          Example: 4 instructor hours with difficulty 5 and stress 5 becomes
-          5.2 planned hours, or 2.6 hours remaining at 50% progress.
+          Example: 4 instructor hours with difficulty 5 and stress 5 becomes 5.2
+          planned hours, or 2.6 hours remaining at 50% progress.
         </p>
         <p>
           <strong>Priority:</strong> nearer deadlines, greater grade weight,
-          more remaining work, higher difficulty or stress, and lower progress
-          raise an assignment’s priority. The list shows the resulting order.
+          more remaining adjusted work, and lower progress raise an assignment’s
+          priority. Difficulty and stress affect adjusted time and are not added
+          again as separate priority terms. The list shows the resulting order.
         </p>
         <p>
           <strong>Weekly plan:</strong> higher-priority assignments get space
-          first. Work is spread across available days before its deadline.
-          High difficulty or stress uses sessions up to 30 minutes; other
-          sessions are up to 60 minutes.
+          first. Work is spread across available days before its deadline. High
+          difficulty or stress uses sessions up to 30 minutes; other sessions
+          are up to 60 minutes.
         </p>
         <p>
           <strong>Workload:</strong> light uses up to half the available time;
-          moderate uses up to 85%; heavy uses the rest. Overloaded means there
+          moderate uses up to 80%; heavy uses the rest. Overloaded means there
           is more work than available time. Work that cannot fit is listed
           separately. Full formulas and assumptions are in the project README.
         </p>

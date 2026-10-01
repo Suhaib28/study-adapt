@@ -1,4 +1,9 @@
-import { Task, plannedHours, priority } from "../lib/scheduler";
+import {
+  Task,
+  plannedHours,
+  priority,
+  maxRemainingHours,
+} from "../lib/scheduler";
 interface Props {
   tasks: Task[];
   today: string;
@@ -13,11 +18,13 @@ export default function ResearchAssignments({
   onComplete,
   onDelete,
 }: Props) {
+  const maxRemaining = maxRemainingHours(tasks);
   const ranked = tasks
     .slice()
     .sort(
       (a, b) =>
-        priority(b, today).score - priority(a, today).score ||
+        priority(b, today, maxRemaining).score -
+          priority(a, today, maxRemaining).score ||
         a.dueDate.localeCompare(b.dueDate) ||
         a.id.localeCompare(b.id),
     );
@@ -35,7 +42,7 @@ export default function ResearchAssignments({
       )}
       <div className="assignment-list">
         {ranked.map((task, index) => {
-          const p = priority(task, today);
+          const p = priority(task, today, maxRemaining);
           return (
             <article
               key={task.id}

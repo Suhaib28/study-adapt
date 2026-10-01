@@ -97,7 +97,7 @@ export default function TaskEditor({ task, editing, onSave, onCancel }: Props) {
               value={draft.effort}
               onChange={(e) => number("effort", e.target.value)}
             >
-              {["Very low", "Low", "Moderate", "High", "Very high"].map(
+              {["Very low", "Low", "Normal", "High", "Very high"].map(
                 (s, i) => (
                   <option key={s} value={i + 1}>
                     {i + 1} — {s}
@@ -112,7 +112,7 @@ export default function TaskEditor({ task, editing, onSave, onCancel }: Props) {
               value={draft.stress}
               onChange={(e) => number("stress", e.target.value)}
             >
-              {["Very low", "Low", "Moderate", "High", "Very high"].map(
+              {["Very low", "Low", "Normal", "High", "Very high"].map(
                 (s, i) => (
                   <option key={s} value={i + 1}>
                     {i + 1} — {s}
