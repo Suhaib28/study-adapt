@@ -104,7 +104,7 @@ export default function App() {
         <h1>Study Adapt</h1>
         <p>FURI · First-phase research prototype</p>
         <p className="muted">
-          Estimate assignment study time using instructor experience and student
+          Estimate assignment study time using instructor estimates and student
           workload ratings.
         </p>
       </header>
@@ -215,45 +215,29 @@ export default function App() {
       >
         <h2 id="explanation-heading">Why the plan looks this way</h2>
         <p>
-          <strong>Estimated time:</strong> start with the instructor’s hours.
-          Difficulty ratings of 4 or 5 add 9% or 18%; stress ratings of 4 or 5
-          add 6% or 12%. Progress reduces the remaining time.
+          <strong>Estimated time:</strong> The app starts with the instructor’s
+          estimate, then adds extra time when difficulty or stress is above normal.
         </p>
         <p>
-          Example: 4 instructor hours with difficulty 5 and stress 5 becomes 5.2
-          planned hours, or 2.6 hours remaining at 50% progress.
+          <strong>Progress:</strong> If an assignment is already partly done,
+          the remaining time goes down.
         </p>
         <p>
-          <strong>Priority:</strong> nearer deadlines, greater grade weight,
-          more remaining adjusted work, and lower progress raise an assignment’s
-          priority. Difficulty and stress affect adjusted time and are not added
-          again as separate priority terms. The list shows the resulting order.
+          <strong>Priority:</strong> Assignments are ordered by due date, grade
+          weight, remaining work, and progress.
         </p>
         <p>
-          <strong>Weekly plan:</strong> higher-priority assignments get space
-          first. Work is spread across available days before its deadline. High
-          difficulty or stress uses sessions up to 30 minutes; other sessions
-          are up to 60 minutes.
+          <strong>Weekly plan:</strong> The app places higher-priority work into
+          the available study hours for the week.
         </p>
         <p>
-          <strong>Workload:</strong> light uses up to half the available time;
-          moderate uses up to 80%; heavy uses the rest. Overloaded means there
-          is more work than available time. Work that cannot fit is listed
-          separately. Full formulas and assumptions are in the project README.
+          <strong>Workload:</strong> The weekly label compares remaining work
+          with available time.
         </p>
         <p className="muted">
-          Inspired by{" "}
-          <a
-            href="https://doi.org/10.18608/jla.2025.8473"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Borchers & Pardos (2025)
-          </a>
-          . Their paper studies course workload information and course
-          selection. This prototype applies those workload dimensions to
-          assignment scheduling. These weights are simple design assumptions,
-          not validated predictions.
+          <strong>Research note:</strong> This prototype is based on the idea
+          that workload includes time, mental effort, and stress. The current
+          weights are first-stage assumptions.
         </p>
       </aside>
       <footer>
