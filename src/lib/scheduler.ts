@@ -7,7 +7,8 @@ export interface Task {
   estimatedHours: number;
   gradeWeight: number;
   effort: number;
-  stress: number;
+  /** Retained only for compatibility with old saves; never used in V2 calculations. */
+  stress?: unknown;
   progress: number;
 }
 export interface Session {
@@ -39,26 +40,93 @@ export function daysBetween(from: string, to: string): number {
       86400000,
   );
 }
-// Only high ratings add a small planning allowance; these are prototype weights.
-export function plannedHours(task: Task): number {
-  const difficultyAllowance = 0.09 * Math.max(0, task.effort - 3);
-  const stressAllowance = 0.06 * Math.max(0, task.stress - 3);
-  return round(
-    task.estimatedHours * (1 + difficultyAllowance + stressAllowance),
+export const ADJUSTMENT_CAP = 0.3;
+export const DIFFICULTY_WEIGHT = 0.6;
+export const STRESS_WEIGHT = 0.4;
+export interface WorkloadConfig {
+  adjustmentCap: number;
+  difficultyWeight: number;
+  stressWeight: number;
+}
+export const DEFAULT_WORKLOAD_CONFIG: Readonly<WorkloadConfig> = Object.freeze({
+  adjustmentCap: ADJUSTMENT_CAP,
+  difficultyWeight: DIFFICULTY_WEIGHT,
+  stressWeight: STRESS_WEIGHT,
+});
+export function validateConfig(config: WorkloadConfig): void {
+  const { adjustmentCap, difficultyWeight, stressWeight } = config;
+  if (
+    ![adjustmentCap, difficultyWeight, stressWeight].every(Number.isFinite) ||
+    adjustmentCap < 0 ||
+    adjustmentCap >= 1 ||
+    difficultyWeight < 0 ||
+    stressWeight < 0 ||
+    Math.abs(difficultyWeight + stressWeight - 1) > 1e-9
+  ) {
+    throw new RangeError(
+      "Use a cap from 0 up to (but not including) 1 and nonnegative weights summing to 1.",
+    );
+  }
+}
+export function validateRating(rating: number): void {
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new RangeError("Ratings must be integers from 1 to 5.");
+  }
+}
+export function plannedHours(
+  task: Task,
+  weeklyStress = 3,
+  config: WorkloadConfig = DEFAULT_WORKLOAD_CONFIG,
+): number {
+  validateConfig(config);
+  validateRating(task.effort);
+  validateRating(weeklyStress);
+  // Centered ordinal coding, NOT z-scores; equal step distances are provisional.
+  const difficulty = (task.effort - 3) / 2;
+  const stress = (weeklyStress - 3) / 2;
+  // 60/40 explores course-choice evidence, not validated completion-time coefficients.
+  // The symmetric 30% bound is provisional; instructor time is a reference, not a minimum.
+  return (
+    task.estimatedHours *
+    (1 +
+      config.adjustmentCap *
+        (config.difficultyWeight * difficulty + config.stressWeight * stress))
   );
 }
-export function remainingHours(task: Task): number {
-  return round(plannedHours(task) * (1 - task.progress / 100));
+export function remainingHours(
+  task: Task,
+  weeklyStress = 3,
+  config: WorkloadConfig = DEFAULT_WORKLOAD_CONFIG,
+): number {
+  return plannedHours(task, weeklyStress, config) * (1 - task.progress / 100);
 }
-export function maxRemainingHours(tasks: Task[]): number {
+export function maxRemainingHours(
+  tasks: Task[],
+  weeklyStress = 3,
+  config: WorkloadConfig = DEFAULT_WORKLOAD_CONFIG,
+): number {
+  validateConfig(config);
+  validateRating(weeklyStress);
   return tasks.reduce(
-    (maximum, task) => Math.max(maximum, remainingHours(task)),
+    (maximum, task) =>
+      Math.max(maximum, remainingHours(task, weeklyStress, config)),
     0,
   );
 }
-export function priority(task: Task, today: string, maxRemaining: number) {
+export function sessionLimit(task: Task, weeklyStress = 3): number {
+  validateRating(task.effort);
+  validateRating(weeklyStress);
+  return task.effort >= 4 || weeklyStress >= 4 ? 0.5 : 1;
+}
+export function priority(
+  task: Task,
+  today: string,
+  maxRemaining: number,
+  weeklyStress = 3,
+  config: WorkloadConfig = DEFAULT_WORKLOAD_CONFIG,
+) {
   const days = daysBetween(today, task.dueDate);
-  const remaining = remainingHours(task);
+  const remaining = remainingHours(task, weeklyStress, config);
   const completed = task.progress >= 100;
   // Clamp overdue dates to zero; normalize workload across the full assignment set.
   const urgency = 1 / (Math.max(0, days) + 1);
@@ -74,9 +142,9 @@ export function priority(task: Task, today: string, maxRemaining: number) {
   };
   const reasons = [
     days < 0 ? "Overdue" : days <= 2 ? "Due soon" : "",
-    task.effort >= 4 ? "High mental effort (time allowance)" : "",
+    task.effort >= 4 ? "High mental effort (time adjustment)" : "",
     task.gradeWeight >= 20 ? "High grade weight" : "",
-    task.stress >= 4 ? "High stress/load (time allowance)" : "",
+    weeklyStress >= 4 ? "Frequent stress this week (time adjustment)" : "",
     task.progress < 25 ? "Low progress" : "",
     remaining >= 4 ? "Long task" : "",
   ].filter(Boolean);
@@ -107,7 +175,11 @@ export function buildPlan(
   tasks: Task[],
   availability: number[],
   today: string,
+  weeklyStress = 3,
+  config: WorkloadConfig = DEFAULT_WORKLOAD_CONFIG,
 ): Plan {
+  validateConfig(config);
+  validateRating(weeklyStress);
   const days: PlanDay[] = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(today, i);
     return {
@@ -117,20 +189,20 @@ export function buildPlan(
       sessions: [],
     };
   });
-  const maxRemaining = maxRemainingHours(tasks);
+  const maxRemaining = maxRemainingHours(tasks, weeklyStress, config);
   const ranked = tasks
     .filter((t) => t.progress < 100)
     .slice()
     .sort(
       (a, b) =>
-        priority(b, today, maxRemaining).score -
-          priority(a, today, maxRemaining).score ||
+        priority(b, today, maxRemaining, weeklyStress, config).score -
+          priority(a, today, maxRemaining, weeklyStress, config).score ||
         a.dueDate.localeCompare(b.dueDate) ||
         a.id.localeCompare(b.id),
     );
   const unplaced: Plan["unplaced"] = [];
   for (const task of ranked) {
-    let remaining = remainingHours(task);
+    let remaining = round(remainingHours(task, weeklyStress, config));
     while (remaining > 0.001) {
       // Overdue tasks get a recovery plan; future tasks are never placed after their deadline.
       const eligible = days.filter(
@@ -148,7 +220,7 @@ export function buildPlan(
           a.date.localeCompare(b.date),
       );
       const day = eligible[0];
-      const maxSession = task.effort >= 4 || task.stress >= 4 ? 0.5 : 1;
+      const maxSession = sessionLimit(task, weeklyStress);
       const hours = round(
         Math.min(remaining, maxSession, day.capacity - day.hours),
       );

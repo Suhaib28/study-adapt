@@ -3,10 +3,12 @@ import {
   plannedHours,
   priority,
   maxRemainingHours,
+  round,
 } from "../lib/scheduler";
 interface Props {
   tasks: Task[];
   today: string;
+  weeklyStress: number;
   onEdit: (task: Task) => void;
   onComplete: (task: Task) => void;
   onDelete: (task: Task) => void;
@@ -14,17 +16,18 @@ interface Props {
 export default function ResearchAssignments({
   tasks,
   today,
+  weeklyStress,
   onEdit,
   onComplete,
   onDelete,
 }: Props) {
-  const maxRemaining = maxRemainingHours(tasks);
+  const maxRemaining = maxRemainingHours(tasks, weeklyStress);
   const ranked = tasks
     .slice()
     .sort(
       (a, b) =>
-        priority(b, today, maxRemaining).score -
-          priority(a, today, maxRemaining).score ||
+        priority(b, today, maxRemaining, weeklyStress).score -
+          priority(a, today, maxRemaining, weeklyStress).score ||
         a.dueDate.localeCompare(b.dueDate) ||
         a.id.localeCompare(b.id),
     );
@@ -32,8 +35,8 @@ export default function ResearchAssignments({
     <section className="panel" aria-labelledby="assignments-heading">
       <h2 id="assignments-heading">2. Assignments, in priority order</h2>
       <p className="muted">
-        Planned total includes the workload allowance. Remaining time also
-        accounts for progress.
+        Planned total uses difficulty and this week’s stress. Remaining time
+        also accounts for progress.
       </p>
       {!tasks.length && (
         <p className="empty">
@@ -42,7 +45,7 @@ export default function ResearchAssignments({
       )}
       <div className="assignment-list">
         {ranked.map((task, index) => {
-          const p = priority(task, today, maxRemaining);
+          const p = priority(task, today, maxRemaining, weeklyStress);
           return (
             <article
               key={task.id}
@@ -70,11 +73,11 @@ export default function ResearchAssignments({
                 </div>
                 <div>
                   <dt>Planned total</dt>
-                  <dd>{plannedHours(task)}h</dd>
+                  <dd>{round(plannedHours(task, weeklyStress))}h</dd>
                 </div>
                 <div>
                   <dt>Remaining</dt>
-                  <dd>{p.remaining}h</dd>
+                  <dd>{round(p.remaining)}h</dd>
                 </div>
                 <div>
                   <dt>Progress</dt>
@@ -82,8 +85,7 @@ export default function ResearchAssignments({
                 </div>
               </dl>
               <p className="muted">
-                Difficulty {task.effort}/5 · Stress {task.stress}/5 · Grade
-                weight {task.gradeWeight}%
+                Difficulty {task.effort}/5 · Grade weight {task.gradeWeight}%
               </p>
               <p className="reasons">
                 <strong>Why:</strong> {p.reasons.join(" · ")}

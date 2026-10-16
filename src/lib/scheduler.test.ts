@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_WORKLOAD_CONFIG,
+  validateConfig,
+  sessionLimit,
   addDays,
   buildPlan,
   daysBetween,
@@ -24,16 +27,85 @@ const task: Task = {
   progress: 0,
 };
 describe("remaining time and priority", () => {
-  it("starts with instructor time and adds only high-rating allowances", () => {
-    expect(plannedHours(task)).toBe(4);
-    expect(plannedHours({ ...task, effort: 1, stress: 1 })).toBe(4);
-    expect(plannedHours({ ...task, effort: 4 })).toBe(4.36);
-    expect(plannedHours({ ...task, stress: 4 })).toBe(4.24);
-    expect(plannedHours({ ...task, effort: 5, stress: 5 })).toBe(5.2);
+  it.each([
+    [5, 5, 5.2],
+    [3, 3, 4],
+    [1, 1, 2.8],
+    [5, 1, 4.24],
+    [1, 5, 3.76],
+  ])("uses centered ratings D=%s S=%s", (effort, stress, expected) => {
+    expect(plannedHours({ ...task, effort }, stress)).toBeCloseTo(expected);
+  });
+  it("applies progress after the adjustment", () => {
+    expect(remainingHours({ ...task, effort: 5, progress: 50 }, 5)).toBeCloseTo(
+      2.6,
+    );
+    expect(remainingHours({ ...task, progress: 100 }, 5)).toBe(0);
+  });
+  it("bounds all 25 combinations and ignores legacy task stress", () => {
+    for (let effort = 1; effort <= 5; effort++)
+      for (let stress = 1; stress <= 5; stress++) {
+        const hours = plannedHours({ ...task, effort }, stress);
+        expect(hours).toBeGreaterThanOrEqual(2.8);
+        expect(hours).toBeLessThanOrEqual(5.2);
+        expect(plannedHours({ ...task, effort, stress: 99 }, stress)).toBe(
+          hours,
+        );
+      }
+  });
+  it.each([0, 6, 2.5, NaN, Infinity])(
+    "rejects invalid ratings %s",
+    (rating) => {
+      expect(() => plannedHours({ ...task, effort: rating })).toThrow(
+        RangeError,
+      );
+      expect(() => buildPlan([], [], today, rating)).toThrow(RangeError);
+    },
+  );
+  it("validates configurable bounds and weights", () => {
+    for (const change of [
+      { adjustmentCap: -0.1 },
+      { adjustmentCap: 1 },
+      { adjustmentCap: NaN },
+      { difficultyWeight: -0.2, stressWeight: 1.2 },
+      { stressWeight: 0.5 },
+      { difficultyWeight: Infinity },
+    ])
+      expect(() =>
+        validateConfig({ ...DEFAULT_WORKLOAD_CONFIG, ...change }),
+      ).toThrow(RangeError);
+    const config = {
+      adjustmentCap: 0.2,
+      difficultyWeight: 0.5,
+      stressWeight: 0.5,
+    };
+    expect(plannedHours({ ...task, effort: 5 }, 5, config)).toBeCloseTo(4.8);
     expect(
-      remainingHours({ ...task, effort: 5, stress: 5, progress: 50 }),
-    ).toBe(2.6);
-    expect(remainingHours({ ...task, progress: 100 })).toBe(0);
+      buildPlan(
+        [{ ...task, effort: 5 }],
+        Array(7).fill(2),
+        today,
+        5,
+        config,
+      ).days.reduce((n, d) => n + d.hours, 0),
+    ).toBeCloseTo(4.8);
+    expect(plannedHours(task, 1, { ...config, adjustmentCap: 0 })).toBe(4);
+  });
+  it("uses weekly stress for estimates, reasons, and shorter sessions", () => {
+    const low = buildPlan([task], Array(7).fill(2), today, 1);
+    const high = buildPlan([task], Array(7).fill(2), today, 5);
+    expect(high.days.reduce((n, d) => n + d.hours, 0)).toBeCloseTo(4.48);
+    expect(low.days.reduce((n, d) => n + d.hours, 0)).toBeCloseTo(3.52);
+    expect(
+      high.days.flatMap((d) => d.sessions).every((s) => s.hours <= 0.5),
+    ).toBe(true);
+    expect(sessionLimit({ ...task, stress: 5 }, 1)).toBe(1);
+    expect(priority(task, today, 8, 5).reasons).toContain(
+      "Frequent stress this week (time adjustment)",
+    );
+    expect(
+      priority({ ...task, stress: 5 }, today, 8, 1).reasons.join(),
+    ).not.toContain("stress");
   });
   it("increases priority for each workload signal and approaching deadlines", () => {
     const score = priority(task, today, 8).score;
@@ -41,7 +113,6 @@ describe("remaining time and priority", () => {
       { estimatedHours: 8 },
       { gradeWeight: 80 },
       { effort: 5 },
-      { stress: 5 },
       { dueDate: today },
     ])
       expect(priority({ ...task, ...change }, today, 8).score).toBeGreaterThan(
@@ -72,12 +143,11 @@ describe("normalized four-term priority", () => {
   it("does not directly count difficulty or stress again", () => {
     const highRatings = { ...task, effort: 5, stress: 5 };
     const sameAdjustedWork = { ...task, estimatedHours: 5.2 };
-    expect(remainingHours(highRatings)).toBe(remainingHours(sameAdjustedWork));
-    expect(priority(highRatings, today, 5.2).score).toBe(
-      priority(sameAdjustedWork, today, 5.2).score,
+    expect(remainingHours(highRatings, 5)).toBe(
+      remainingHours(sameAdjustedWork),
     );
-    expect(priority({ ...task, effort: 1, stress: 2 }, today, 5.2).score).toBe(
-      priority(task, today, 5.2).score,
+    expect(priority(highRatings, today, 5.2, 5).score).toBe(
+      priority(sameAdjustedWork, today, 5.2).score,
     );
   });
   it("normalizes against current remaining work and excludes completed work from the maximum", () => {
@@ -166,7 +236,7 @@ describe("scheduling constraints", () => {
   });
   it("places the adjusted estimate into short sessions spread over days", () => {
     const demanding = { ...task, effort: 5, stress: 5 };
-    const plan = buildPlan([demanding], Array(7).fill(2), today);
+    const plan = buildPlan([demanding], Array(7).fill(2), today, 5);
     const sessions = plan.days.flatMap((d) => d.sessions);
     expect(sessions.every((s) => s.hours <= 0.5)).toBe(true);
     expect(sessions.reduce((sum, s) => sum + s.hours, 0)).toBeCloseTo(5.2);
@@ -177,7 +247,7 @@ describe("scheduling constraints", () => {
     const total = (t: Task) =>
       buildPlan([t], availability, today).days.reduce((s, d) => s + d.hours, 0);
     expect(total({ ...task, progress: 50 })).toBe(2);
-    expect(total({ ...task, effort: 5, stress: 5 })).toBeCloseTo(5.2);
+    expect(total({ ...task, effort: 5 })).toBeCloseTo(4.72);
     expect(total({ ...task, progress: 100 })).toBe(0);
     expect(
       buildPlan([task], Array(7).fill(0), today).days.every(

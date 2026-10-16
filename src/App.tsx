@@ -11,7 +11,13 @@ import {
   Task,
   workloadLabel,
 } from "./lib/scheduler";
-import { demoState, readState, STORAGE_KEY } from "./lib/study-state";
+import {
+  demoState,
+  readState,
+  STORAGE_KEY,
+  weekKey,
+  stressForWeek,
+} from "./lib/study-state";
 const weekdays = [
   "Sunday",
   "Monday",
@@ -30,7 +36,6 @@ function emptyTask(today: string): Task {
     estimatedHours: 4,
     gradeWeight: 10,
     effort: 3,
-    stress: 3,
     progress: 0,
   };
 }
@@ -62,12 +67,14 @@ export default function App() {
       );
     }
   }, [state]);
+  const currentWeek = weekKey(today);
+  const weeklyStress = stressForWeek(state, today);
   const plan = useMemo(
-    () => buildPlan(state.tasks, state.availability, today),
-    [state, today],
+    () => buildPlan(state.tasks, state.availability, today, weeklyStress),
+    [state, today, weeklyStress],
   );
   const remaining = round(
-    state.tasks.reduce((sum, t) => sum + remainingHours(t), 0),
+    state.tasks.reduce((sum, t) => sum + remainingHours(t, weeklyStress), 0),
   );
   const capacity = round(state.availability.reduce((sum, h) => sum + h, 0));
   const level = workloadLabel(remaining, capacity);
@@ -104,8 +111,8 @@ export default function App() {
         <h1>Study Adapt</h1>
         <p>FURI · First-phase research prototype</p>
         <p className="muted">
-          Estimate assignment study time using instructor estimates and student
-          workload ratings.
+          Plan assignment work using instructor estimates, assignment
+          difficulty, and how your week is going.
         </p>
       </header>
       {warning && (
@@ -117,6 +124,7 @@ export default function App() {
         key={draft.id + ":" + editing}
         task={draft}
         editing={editing}
+        weeklyStress={weeklyStress}
         onSave={save}
         onCancel={() => setDraft(emptyTask(today))}
       />
@@ -126,6 +134,7 @@ export default function App() {
       <ResearchAssignments
         tasks={state.tasks}
         today={today}
+        weeklyStress={weeklyStress}
         onEdit={edit}
         onComplete={(task) => save({ ...task, progress: 100 })}
         onDelete={remove}
@@ -136,6 +145,49 @@ export default function App() {
           Next seven days: {today} to {addDays(today, 6)}. Enter the hours
           available for studying, excluding classes and breaks.
         </p>
+        <section
+          aria-labelledby="weekly-stress-heading"
+          className="weekly-stress"
+        >
+          <h3 id="weekly-stress-heading">Stress this week</h3>
+          <p className="muted">Week of {currentWeek} (Monday–Sunday).</p>
+          <label>
+            How often have you felt academic stress this week?
+            <select
+              aria-label="Stress this week"
+              value={weeklyStress}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                setState((s) => ({
+                  ...s,
+                  weeklyStress: { ...s.weeklyStress, [currentWeek]: value },
+                }));
+                setMessage(
+                  "Weekly stress saved. Estimates, priorities, and the plan have been updated.",
+                );
+              }}
+            >
+              {[
+                "Nearly never",
+                "Seldom",
+                "Sometimes",
+                "Frequently",
+                "Nearly always",
+              ].map((label, i) => (
+                <option key={label} value={i + 1}>
+                  {i + 1} — {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted">
+            {state.weeklyStress[currentWeek] === undefined
+              ? "No response saved for this week; using 3."
+              : "Response saved for this week."}{" "}
+            This response applies to this seven-day preview. A new week uses its
+            own response or defaults to 3.
+          </p>
+        </section>
         <div className="availability-grid">
           {plan.days.map((day) => {
             const index = new Date(`${day.date}T12:00:00`).getDay();
@@ -178,7 +230,11 @@ export default function App() {
           assignments due later. Daily labels describe the time actually
           scheduled.
         </p>
-        <ResearchWeek plan={plan} tasks={state.tasks} />
+        <ResearchWeek
+          plan={plan}
+          tasks={state.tasks}
+          weeklyStress={weeklyStress}
+        />
         {plan.unplaced.length > 0 && (
           <div className="notice">
             <strong>
@@ -215,29 +271,9 @@ export default function App() {
       >
         <h2 id="explanation-heading">Why the plan looks this way</h2>
         <p>
-          <strong>Estimated time:</strong> The app starts with the instructor’s
-          estimate, then adds extra time when difficulty or stress is above normal.
-        </p>
-        <p>
-          <strong>Progress:</strong> If an assignment is already partly done,
-          the remaining time goes down.
-        </p>
-        <p>
-          <strong>Priority:</strong> Assignments are ordered by due date, grade
-          weight, remaining work, and progress.
-        </p>
-        <p>
-          <strong>Weekly plan:</strong> The app places higher-priority work into
-          the available study hours for the week.
-        </p>
-        <p>
-          <strong>Workload:</strong> The weekly label compares remaining work
-          with available time.
-        </p>
-        <p className="muted">
-          <strong>Research note:</strong> This prototype is based on the idea
-          that workload includes time, mental effort, and stress. The current
-          weights are first-stage assumptions.
+          Estimated time starts with the instructor’s estimate and changes based
+          on difficulty and weekly stress. The weekly plan uses the remaining
+          work, deadlines, and available study hours.
         </p>
       </aside>
       <footer>

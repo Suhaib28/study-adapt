@@ -1,74 +1,38 @@
 # Study Adapt
 
-A first-phase FURI research prototype for assignment-level study planning.
+A first-phase FURI research prototype for assignment-level study planning. It starts with instructor estimates and adjusts planned time using assignment difficulty and weekly academic stress.
 
-The goal is to test whether a student's weekly study plan can be improved by starting with the instructor's estimated time and then adjusting it using the student's own difficulty and stress ratings.
+Live demo: https://suhaib28.github.io/study-adapt/
 
-Live demo: [suhaib28.github.io/study-adapt](https://suhaib28.github.io/study-adapt/)
-
-## Research basis
-
-This prototype is based on the [Course Load Analytics paper by Borchers and Pardos](https://doi.org/10.18608/jla.2025.8473) and its idea that workload is not only time. Workload also includes mental effort and psychological stress. This app applies that course-level idea to individual assignments.
-
-In this app:
-
-- Instructor estimated time = starting point
-- Difficulty rating = mental effort
-- Stress rating = psychological stress
-- Progress = how much work is already completed
-
-The research supports using these workload dimensions. The exact formula and weights are first-stage assumptions that can be tested and changed later.
-
-## Current algorithm
+## Current algorithm (V2)
 
 For each assignment:
 
-- `E` = instructor estimated hours
-- `D` = difficulty rating from 1 to 5
-- `S` = stress rating from 1 to 5
-- `P` = progress from 0 to 1
-
-The rating scale is: **1 = very low, 2 = low, 3 = normal, 4 = high, 5 = very high.**
-
-A rating of 3 is treated as normal. Ratings below 3 do not reduce the instructor estimate in this first version. Ratings above 3 add planning time.
+- E = instructor estimated hours
+- D = assignment difficulty, 1–5
+- S = academic stress this week, 1–5
+- P = progress completed, 0–1
 
 ```text
-planned hours = E × (1 + 0.09 × max(0, D - 3) + 0.06 × max(0, S - 3))
+d = (D - 3) / 2
+s = (S - 3) / 2
+planned hours = E × (1 + 0.30 × (0.60 × d + 0.40 × s))
 remaining hours = planned hours × (1 - P)
 ```
 
-Difficulty has a slightly larger effect because mental effort was especially important in the Course Load Analytics paper. Stress still matters, with a smaller adjustment. Together, they add at most 30% to the instructor estimate.
+Ratings of 3 leave the estimate unchanged; lower or higher ratings can reduce or increase it. For E=4, D=5 and S=5, planned time is 5.2 hours, or 2.6 hours remaining at 50% progress. Priority uses urgency, grade weight, remaining work and progress to fill available study hours.
 
-## Example
+The equal rating steps, 60/40 weights and ±30% bound are provisional assumptions, not validated time predictions.
 
-If an instructor estimates 4 hours and the student rates both difficulty and stress as 5:
+## Research basis
 
-```text
-difficulty adjustment = 0.09 × (5 - 3) = 0.18
-stress adjustment = 0.06 × (5 - 3) = 0.12
-planned hours = 4 × 1.30 = 5.2 hours
-```
+Workload includes time, mental effort and psychological stress. This prototype applies course-level ideas to assignments.
 
-At 50% progress:
+- [Borchers & Pardos (2025): Course Load Analytics](https://doi.org/10.18608/jla.2025.8473)
+- [Pardos, Borchers & Yu (2023): Credit Hours Is Not Enough](https://doi.org/10.1016/j.iheduc.2022.100882)
+- [Wentling & Variawa (2020): Instructor Expectation and Student Workload](https://doi.org/10.24908/pceea.vi0.14189)
 
-```text
-remaining hours = 5.2 × (1 - 0.50) = 2.6 hours
-```
-
-## Priority
-
-The app ranks assignments using:
-
-- Deadline urgency
-- Grade weight
-- Remaining adjusted workload
-- Progress left
-
-Difficulty and stress are not added again directly into priority because they already affect the adjusted planned time. The weekly plan places higher-priority assignments within the student's available hours.
-
-## Prototype assumptions
-
-This is not a final validated model. The 9% and 6% adjustments, priority weights, and workload labels are starting assumptions. The next step is to compare the formula with real student feedback or time data.
+See [research notes](docs/research-notes.md) for evidence, assumptions and future validation.
 
 ## Run locally
 
@@ -77,11 +41,12 @@ npm install
 npm run dev
 ```
 
-Validation commands:
+Checks:
 
 ```sh
 npm run build
 npm test
 npm run test:e2e
 npm run lint
+npx tsc --noEmit -p tsconfig.app.json
 ```

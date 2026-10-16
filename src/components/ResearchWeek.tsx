@@ -1,10 +1,18 @@
-import { Plan, round, Task, workloadLabel } from "../lib/scheduler";
+import {
+  Plan,
+  round,
+  sessionLimit,
+  Task,
+  workloadLabel,
+} from "../lib/scheduler";
 export default function ResearchWeek({
   plan,
   tasks,
+  weeklyStress,
 }: {
   plan: Plan;
   tasks: Task[];
+  weeklyStress: number;
 }) {
   return (
     <div className="week-grid">
@@ -36,8 +44,7 @@ export default function ResearchWeek({
                     {sessions.length} session{sessions.length === 1 ? "" : "s"}
                   </p>
                   <small>
-                    Up to {task.effort >= 4 || task.stress >= 4 ? 30 : 60} min
-                    each
+                    Up to {sessionLimit(task, weeklyStress) * 60} min each
                   </small>
                 </div>
               );

@@ -1,13 +1,20 @@
 import { FormEvent, useState } from "react";
-import { plannedHours, remainingHours, Task } from "../lib/scheduler";
+import { plannedHours, remainingHours, round, Task } from "../lib/scheduler";
 import { taskSchema } from "../lib/study-state";
 interface Props {
   task: Task;
   editing: boolean;
+  weeklyStress: number;
   onSave: (task: Task) => void;
   onCancel: () => void;
 }
-export default function TaskEditor({ task, editing, onSave, onCancel }: Props) {
+export default function TaskEditor({
+  task,
+  editing,
+  weeklyStress,
+  onSave,
+  onCancel,
+}: Props) {
   const [draft, setDraft] = useState(task);
   const [error, setError] = useState("");
   const number = (key: keyof Task, value: string) =>
@@ -33,7 +40,7 @@ export default function TaskEditor({ task, editing, onSave, onCancel }: Props) {
       </h2>
       <p className="muted">
         Use the instructor’s expected time as a starting point, then add the
-        student’s own ratings.
+        assignment’s difficulty. Weekly stress is set below.
       </p>
       <form onSubmit={submit}>
         <div className="form-grid">
@@ -92,25 +99,10 @@ export default function TaskEditor({ task, editing, onSave, onCancel }: Props) {
             <small>Share of the course grade; use 0 for ungraded work.</small>
           </label>
           <label>
-            Student difficulty (mental effort)
+            Assignment difficulty (mental effort)
             <select
               value={draft.effort}
               onChange={(e) => number("effort", e.target.value)}
-            >
-              {["Very low", "Low", "Normal", "High", "Very high"].map(
-                (s, i) => (
-                  <option key={s} value={i + 1}>
-                    {i + 1} — {s}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-          <label>
-            Student stress
-            <select
-              value={draft.stress}
-              onChange={(e) => number("stress", e.target.value)}
             >
               {["Very low", "Low", "Normal", "High", "Very high"].map(
                 (s, i) => (
@@ -137,7 +129,7 @@ export default function TaskEditor({ task, editing, onSave, onCancel }: Props) {
         </div>
         <p className="estimate-preview" aria-live="polite">
           {valid
-            ? `Estimate: ${draft.estimatedHours}h instructor → ${plannedHours(draft)}h planned total → ${remainingHours(draft)}h remaining.`
+            ? `Estimate: ${draft.estimatedHours}h instructor → ${round(plannedHours(draft, weeklyStress))}h planned total → ${round(remainingHours(draft, weeklyStress))}h remaining.`
             : "Complete the fields to preview the adjusted time estimate."}
         </p>
         {error && (

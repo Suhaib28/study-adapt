@@ -10,8 +10,10 @@ test("instructor estimate, ratings, progress and saved assignments work together
     .fill("Research assignment");
   await page.getByLabel("Course name", { exact: true }).fill("FURI");
   await page.getByLabel("Instructor estimated time (hours)").fill("4");
-  await page.getByLabel("Student difficulty (mental effort)").selectOption("5");
-  await page.getByLabel("Student stress").selectOption("5");
+  await page
+    .getByLabel("Assignment difficulty (mental effort)")
+    .selectOption("5");
+  await page.getByRole("combobox", {name: "Stress this week"}).selectOption("5");
   await expect(page.locator(".estimate-preview")).toContainText(
     "4h instructor → 5.2h planned total → 5.2h remaining",
   );
@@ -23,7 +25,7 @@ test("instructor estimate, ratings, progress and saved assignments work together
     exact: true,
   });
   await expect(assignment).toContainText("High mental effort");
-  await expect(assignment).toContainText("High stress/load");
+  await expect(assignment).toContainText("Frequent stress this week");
   await assignment.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Current progress (%)").fill("50");
   await expect(page.locator(".estimate-preview")).toContainText(
@@ -78,4 +80,57 @@ test("capacity limits, workload labels and responsive layout", async ({
   await expect(page.locator(".session")).toHaveCount(0);
   await page.reload();
   await expect(page.getByLabel("Monday available hours")).toHaveValue("0");
+});
+
+test("legacy assignments survive weekly stress changes and Monday rollover", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2026-10-18T12:00:00") });
+  await page.goto("/");
+  const legacyTask = {
+    id: "legacy",
+    name: "Legacy assignment",
+    course: "FURI",
+    dueDate: "2026-10-25",
+    estimatedHours: 4,
+    gradeWeight: 20,
+    effort: 5,
+    stress: 1,
+    progress: 0,
+    note: "preserve",
+  };
+  await page.evaluate(
+    (task) =>
+      localStorage.setItem(
+        "study-adapt-research-v1",
+        JSON.stringify({
+          tasks: [task],
+          availability: Array(7).fill(2),
+        }),
+      ),
+    legacyTask,
+  );
+  await page.reload();
+  const assignment = page.getByRole("article", {
+    name: "Legacy assignment",
+    exact: true,
+  });
+  await expect(assignment).toContainText("4.72h");
+  await expect(page.getByRole("combobox", {name: "Stress this week"})).toHaveValue("3");
+  await page.getByRole("combobox", {name: "Stress this week"}).selectOption("5");
+  await expect(assignment).toContainText("5.2h");
+  await expect(page.locator(".workload")).toContainText("5.2h");
+  await page.reload();
+  await expect(page.getByRole("combobox", {name: "Stress this week"})).toHaveValue("5");
+  await page.clock.setSystemTime(new Date("2026-10-19T12:00:00"));
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("combobox", {name: "Stress this week"})).toHaveValue("3");
+  await expect(assignment).toContainText("4.72h");
+  await page.getByRole("combobox", {name: "Stress this week"}).selectOption("1");
+  await expect(assignment).toContainText("4.24h");
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("study-adapt-research-v1")!),
+  );
+  expect(saved.tasks).toEqual([legacyTask]);
+  expect(saved.weeklyStress).toEqual({ "2026-10-12": 5, "2026-10-19": 1 });
 });
