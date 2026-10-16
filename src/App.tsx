@@ -5,6 +5,7 @@ import ResearchWeek from "./components/ResearchWeek";
 import {
   addDays,
   buildPlan,
+  DEFAULT_WORKLOAD_CONFIG,
   localDate,
   remainingHours,
   round,
@@ -18,6 +19,10 @@ import {
   weekKey,
   stressForWeek,
 } from "./lib/study-state";
+const coefficientFormat = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 20,
+});
 const weekdays = [
   "Sunday",
   "Monday",
@@ -274,6 +279,27 @@ export default function App() {
           Estimated time starts with the instructor’s estimate and changes based
           on difficulty and weekly stress. The weekly plan uses the remaining
           work, deadlines, and available study hours.
+        </p>
+        <p>
+          <strong>Adjusted hours:</strong>
+          <br />T = E × [1 +{" "}
+          {coefficientFormat.format(DEFAULT_WORKLOAD_CONFIG.adjustmentCap)} × (
+          {coefficientFormat.format(DEFAULT_WORKLOAD_CONFIG.difficultyWeight)} ×
+          (D − 3)/2 +{" "}
+          {coefficientFormat.format(DEFAULT_WORKLOAD_CONFIG.stressWeight)} × (S
+          − 3)/2)]
+        </p>
+        <p>
+          <strong>Remaining hours:</strong>
+          <br />R = T × (1 − P)
+        </p>
+        <p>
+          E = instructor estimated hours; D = assignment difficulty (1–5); S =
+          weekly stress (1–5); P = completed fraction (0–1).
+        </p>
+        <p className="muted">
+          The coefficients and equal-step rating assumptions are provisional and
+          require empirical validation.
         </p>
       </aside>
       <footer>
