@@ -75,3 +75,35 @@ it("invalid weekly responses do not discard assignments or valid responses", () 
   expect(stressForWeek(loaded.state, "2026-10-19")).toBe(3);
   expect(loaded.warning).toContain("invalid");
 });
+
+it("preserves optional actual hours and frozen predictions through storage", async () => {
+  const { recordPrediction } = await import("./evaluation");
+  const state = demoState("2026-10-30");
+  const task = recordPrediction(
+    { ...state.tasks[0], isExample: false },
+    4,
+    "2026-10-30",
+    true,
+  );
+  const completed = { ...task, progress: 100, actualHours: 0 };
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ ...state, tasks: [completed] }),
+  );
+  expect(readState().state.tasks).toEqual([completed]);
+  expect(readState().warning).toBe("");
+  expect(
+    taskSchema.safeParse({ ...completed, actualHours: undefined }).success,
+  ).toBe(true);
+  for (const value of [-1, Infinity, NaN]) {
+    expect(
+      taskSchema.safeParse({ ...completed, actualHours: value }).success,
+    ).toBe(false);
+  }
+  expect(
+    taskSchema.safeParse({
+      ...completed,
+      prediction: { ...task.prediction, weeklyStress: 6 },
+    }).success,
+  ).toBe(false);
+});

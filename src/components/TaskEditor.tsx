@@ -1,5 +1,11 @@
 import { FormEvent, useState } from "react";
-import { plannedHours, remainingHours, round, Task } from "../lib/scheduler";
+import {
+  plannedHours,
+  remainingHours,
+  round,
+  lookupHours,
+  Task,
+} from "../lib/scheduler";
 import { taskSchema } from "../lib/study-state";
 interface Props {
   task: Task;
@@ -126,11 +132,45 @@ export default function TaskEditor({
             />
             <small>0 = not started; 100 = completed.</small>
           </label>
+          {draft.progress === 100 && (
+            <label>
+              Actual total hours spent (optional)
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={draft.actualHours ?? ""}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    actualHours:
+                      e.target.value === ""
+                        ? undefined
+                        : Number(e.target.value),
+                  })
+                }
+              />
+              <small>
+                All time spent on this assignment, separate from progress.
+              </small>
+            </label>
+          )}
         </div>
         <p className="estimate-preview" aria-live="polite">
           {valid
             ? `Estimate: ${draft.estimatedHours}h instructor → ${round(plannedHours(draft, weeklyStress))}h planned total → ${round(remainingHours(draft, weeklyStress))}h remaining.`
             : "Complete the fields to preview the adjusted time estimate."}
+        </p>
+        {valid && (
+          <p className="muted">
+            Comparison totals: instructor {draft.estimatedHours}h · category
+            lookup {round(lookupHours(draft, weeklyStress))}h. The weekly plan
+            uses the centered estimate above.
+          </p>
+        )}
+        <p className="muted">
+          Saving unfinished work records its first estimate for later
+          comparison. Add actual total hours after setting progress to 100%.
         </p>
         {error && (
           <p className="notice" role="alert">

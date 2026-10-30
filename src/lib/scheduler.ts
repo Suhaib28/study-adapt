@@ -10,6 +10,22 @@ export interface Task {
   /** Retained only for compatibility with old saves; never used in V2 calculations. */
   stress?: unknown;
   progress: number;
+  actualHours?: number;
+  prediction?: PredictionSnapshot;
+  isExample?: boolean;
+}
+export interface ModelHours {
+  instructor: number;
+  centered: number;
+  lookup: number;
+}
+export interface PredictionSnapshot {
+  recordedOn: string;
+  weeklyStress: number;
+  stressReported: boolean;
+  difficulty: number;
+  progress: number;
+  hours: ModelHours;
 }
 export interface Session {
   taskId: string;
@@ -99,6 +115,32 @@ export function remainingHours(
   config: WorkloadConfig = DEFAULT_WORKLOAD_CONFIG,
 ): number {
   return plannedHours(task, weeklyStress, config) * (1 - task.progress / 100);
+}
+// Separate category effects with unequal steps. These are provisional, not fitted values.
+export const DIFFICULTY_ADJUSTMENTS = Object.freeze([
+  -0.18, -0.05, 0, 0.07, 0.18,
+]);
+export const STRESS_ADJUSTMENTS = Object.freeze([-0.12, -0.03, 0, 0.04, 0.12]);
+export function lookupHours(task: Task, weeklyStress = 3): number {
+  validateRating(task.effort);
+  validateRating(weeklyStress);
+  return (
+    task.estimatedHours *
+    (1 +
+      DIFFICULTY_ADJUSTMENTS[task.effort - 1] +
+      STRESS_ADJUSTMENTS[weeklyStress - 1])
+  );
+}
+export function modelHours(
+  task: Task,
+  weeklyStress = 3,
+  config: WorkloadConfig = DEFAULT_WORKLOAD_CONFIG,
+): ModelHours {
+  return {
+    instructor: task.estimatedHours,
+    centered: plannedHours(task, weeklyStress, config),
+    lookup: lookupHours(task, weeklyStress),
+  };
 }
 export function maxRemainingHours(
   tasks: Task[],

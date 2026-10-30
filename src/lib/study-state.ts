@@ -20,6 +20,22 @@ export const taskSchema = z
     // Preserve old assignment ratings as historical data, never as weekly responses.
     stress: z.unknown().optional(),
     progress: z.number().min(0).max(100),
+    actualHours: z.number().finite().min(0).optional(),
+    isExample: z.boolean().optional(),
+    prediction: z
+      .object({
+        recordedOn: date,
+        weeklyStress: rating,
+        stressReported: z.boolean(),
+        difficulty: rating,
+        progress: z.number().min(0).lt(100),
+        hours: z.object({
+          instructor: z.number().finite().positive(),
+          centered: z.number().finite().positive(),
+          lookup: z.number().finite().positive(),
+        }),
+      })
+      .optional(),
   })
   .passthrough();
 export function weekKey(day = localDate()): string {
@@ -66,6 +82,7 @@ export function demoState(today = localDate()): StudyState {
     gradeWeight,
     effort,
     progress,
+    isExample: true,
   });
   return {
     availability: [2, 2, 2.5, 2, 2.5, 1, 3],

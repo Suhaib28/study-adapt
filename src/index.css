@@ -334,3 +334,18 @@ footer {
     gap: 5px;
   }
 }
+
+.model-evaluation table {
+  width: 100%;
+  max-width: 520px;
+  font-size: 13px;
+  text-align: left;
+}
+.model-evaluation caption {
+  text-align: left;
+}
+.model-evaluation th,
+.model-evaluation td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #dce1db;
+}

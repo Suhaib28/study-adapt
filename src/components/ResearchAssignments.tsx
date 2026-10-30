@@ -1,6 +1,7 @@
 import {
   Task,
   plannedHours,
+  lookupHours,
   priority,
   maxRemainingHours,
   round,
@@ -84,6 +85,26 @@ export default function ResearchAssignments({
                   <dd>{task.progress}%</dd>
                 </div>
               </dl>
+              {task.isExample && (
+                <p className="muted">
+                  Example assignment · excluded from evaluation
+                </p>
+              )}
+              <p className="muted">
+                Category lookup total: {round(lookupHours(task, weeklyStress))}h
+                · weekly plan uses the centered model.
+              </p>
+              {task.progress === 100 && task.actualHours !== undefined && (
+                <p>Actual total hours: {task.actualHours}h</p>
+              )}
+              {task.prediction && (
+                <p className="muted">
+                  Comparison estimates saved {task.prediction.recordedOn}:
+                  instructor {round(task.prediction.hours.instructor)}h,
+                  centered {round(task.prediction.hours.centered)}h, lookup{" "}
+                  {round(task.prediction.hours.lookup)}h.
+                </p>
+              )}
               <p className="muted">
                 Difficulty {task.effort}/5 · Grade weight {task.gradeWeight}%
               </p>

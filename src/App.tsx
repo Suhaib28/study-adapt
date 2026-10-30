@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import TaskEditor from "./components/TaskEditor";
 import ResearchAssignments from "./components/ResearchAssignments";
 import ResearchWeek from "./components/ResearchWeek";
+import ModelEvaluation from "./components/ModelEvaluation";
+import { recordPrediction } from "./lib/evaluation";
 import {
   addDays,
   buildPlan,
@@ -84,6 +86,12 @@ export default function App() {
   const capacity = round(state.availability.reduce((sum, h) => sum + h, 0));
   const level = workloadLabel(remaining, capacity);
   function save(task: Task) {
+    task = recordPrediction(
+      task,
+      weeklyStress,
+      today,
+      state.weeklyStress[currentWeek] !== undefined,
+    );
     setState((s) => ({
       ...s,
       tasks: s.tasks.some((t) => t.id === task.id)
@@ -270,6 +278,7 @@ export default function App() {
           by weekday.
         </p>
       </section>
+      <ModelEvaluation tasks={state.tasks} />
       <aside
         className="panel explanation"
         aria-labelledby="explanation-heading"
@@ -281,7 +290,7 @@ export default function App() {
           work, deadlines, and available study hours.
         </p>
         <p>
-          <strong>Adjusted hours:</strong>
+          <strong>Centered model (used for the weekly plan):</strong>
           <br />T = E × [1 +{" "}
           {coefficientFormat.format(DEFAULT_WORKLOAD_CONFIG.adjustmentCap)} × (
           {coefficientFormat.format(DEFAULT_WORKLOAD_CONFIG.difficultyWeight)} ×
