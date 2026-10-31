@@ -213,3 +213,46 @@ test("synthetic evaluation fixture: actual hours use frozen estimates across rel
     ),
   ).toBe(true);
 });
+
+test("LaTeX equations render with readable fractions and fit narrow screens", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  const formulas = page.locator(".study-formulas");
+  await expect(formulas.locator(".study-equation .katex")).toHaveCount(2);
+  await expect(formulas.locator(".study-equation math mfrac")).toHaveCount(2);
+  await expect(formulas.locator(".katex-error")).toHaveCount(0);
+  await expect(formulas.locator(".formula-coefficients")).toContainText("0.30");
+  await expect(formulas.locator(".formula-coefficients")).toContainText("0.60");
+  await expect(formulas.locator(".formula-coefficients")).toContainText("0.40");
+  await page.evaluate(() => document.fonts.ready);
+  for (const width of [320, 393, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    const fits = await formulas
+      .locator(".study-equation .katex-html .base")
+      .evaluateAll((elements) =>
+        elements.every((element) => {
+          const equation = element.closest(".study-equation")!;
+          const bounds = element.getBoundingClientRect();
+          const container = equation.getBoundingClientRect();
+          return (
+            bounds.left >= container.left - 1 &&
+            bounds.right <= container.right + 1
+          );
+        }),
+      );
+    expect(fits, `equations fit at ${width}px`).toBe(true);
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    if (width === 320 || width === 1280) {
+      await formulas.screenshot({
+        path: testInfo.outputPath(`formulas-${width}.png`),
+      });
+    }
+  }
+});

@@ -349,3 +349,15 @@ footer {
   padding: 8px 6px;
   border-bottom: 1px solid #dce1db;
 }
+
+.study-equation {
+  overflow-x: auto;
+  padding: 2px 0;
+  font-size: clamp(0.75rem, 2.8vw, 1rem);
+}
+.study-equation .katex-display {
+  margin: 0.6em 0;
+}
+.formula-coefficients {
+  text-align: center;
+}
