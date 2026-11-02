@@ -47,16 +47,52 @@ export default function StudyFormulas() {
         className="formula-coefficients"
         dangerouslySetInnerHTML={{ __html: coefficients }}
       />
-      <p>
-        i = assignment; w = week; E<sub>i</sub> = instructor estimated hours; D
-        <sub>i</sub> = assignment difficulty (1–5); S<sub>w</sub> = weekly
-        stress (1–5); P<sub>i</sub> = completed fraction (0–1).
-      </p>
-      <p>
-        T<sub>i,w</sub> = adjusted total hours; R<sub>i,w</sub> = remaining
-        hours; C = adjustment cap; w<sub>D</sub> and w<sub>S</sub> = difficulty
-        and stress weights.
-      </p>
+      <dl className="model-variables">
+        <div>
+          <dt>
+            E<sub>i</sub>
+          </dt>
+          <dd>Instructor estimated hours</dd>
+        </div>
+        <div>
+          <dt>
+            D<sub>i</sub>
+          </dt>
+          <dd>Assignment difficulty, 1–5</dd>
+        </div>
+        <div>
+          <dt>
+            S<sub>w</sub>
+          </dt>
+          <dd>Weekly stress, 1–5</dd>
+        </div>
+        <div>
+          <dt>
+            P<sub>i</sub>
+          </dt>
+          <dd>Completed fraction, 0–1</dd>
+        </div>
+        <div>
+          <dt>
+            T<sub>i,w</sub> / R<sub>i,w</sub>
+          </dt>
+          <dd>Adjusted total / remaining hours</dd>
+        </div>
+        <div>
+          <dt>C</dt>
+          <dd>Adjustment cap</dd>
+        </div>
+        <div>
+          <dt>
+            w<sub>D</sub> / w<sub>S</sub>
+          </dt>
+          <dd>Difficulty / stress weights</dd>
+        </div>
+        <div>
+          <dt>i / w</dt>
+          <dd>Assignment / week</dd>
+        </div>
+      </dl>
     </div>
   );
 }

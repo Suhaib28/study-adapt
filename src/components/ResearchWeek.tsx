@@ -1,3 +1,4 @@
+import { courseAccent } from "../lib/course-presentation";
 import {
   Plan,
   round,
@@ -20,7 +21,13 @@ export default function ResearchWeek({
         const level = workloadLabel(day.hours, day.capacity);
         const taskIds = [...new Set(day.sessions.map((s) => s.taskId))];
         return (
-          <article key={day.date} className="day">
+          <article
+            key={day.date}
+            className={`day ${day.date === plan.days[0].date ? "is-today" : ""}`}
+          >
+            {day.date === plan.days[0].date && (
+              <span className="today-label">Today</span>
+            )}
             <h3>
               {new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, {
                 weekday: "short",
@@ -36,7 +43,11 @@ export default function ResearchWeek({
               const task = tasks.find((t) => t.id === id)!;
               const sessions = day.sessions.filter((s) => s.taskId === id);
               return (
-                <div key={id} className="session">
+                <div
+                  key={id}
+                  className="session"
+                  style={{ borderLeftColor: courseAccent(task.course) }}
+                >
                   <strong>{task.name}</strong>
                   <small>{task.course}</small>
                   <p>

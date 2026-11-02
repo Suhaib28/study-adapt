@@ -256,3 +256,216 @@ test("LaTeX equations render with readable fractions and fit narrow screens", as
     }
   }
 });
+
+test("dashboard course filters preserve the global plan and saved records", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const list = page.getByRole("region", { name: "Assignments", exact: true });
+  const before = await page.evaluate(() =>
+    localStorage.getItem("study-adapt-research-v1"),
+  );
+  const sessions = await page.locator(".session").allTextContents();
+  const project = page.getByRole("article", {
+    name: "Graph algorithms project",
+    exact: true,
+  });
+  const rank = await project.locator(".rank").textContent();
+  await page
+    .getByRole("button", { name: "View Algorithms assignments", exact: true })
+    .click();
+  await expect(
+    page.getByRole("combobox", { name: "Filter by course" }),
+  ).toHaveValue("Algorithms");
+  await expect(list.locator(".assignment")).toHaveCount(1);
+  await expect(project.locator(".rank")).toHaveText(rank!);
+  await page
+    .getByRole("button", { name: "Completed assignments", exact: true })
+    .click();
+  await expect(list).toContainText("No assignments match these filters.");
+  await page
+    .getByRole("button", { name: "Clear filters", exact: true })
+    .click();
+  await expect(list.locator(".assignment")).toHaveCount(3);
+  await page
+    .getByRole("searchbox", { name: "Search assignments" })
+    .fill("process");
+  await expect(list.locator(".assignment")).toHaveCount(1);
+  await expect(list).toContainText("Process scheduling lab");
+  await page
+    .getByRole("button", { name: "View Algorithms assignments", exact: true })
+    .click();
+  await expect(
+    page.getByRole("searchbox", { name: "Search assignments" }),
+  ).toHaveValue("");
+  await expect(list.locator(".assignment")).toHaveCount(1);
+  await expect(project).toBeVisible();
+  expect(await page.locator(".session").allTextContents()).toEqual(sessions);
+  expect(
+    await page.evaluate(() => localStorage.getItem("study-adapt-research-v1")),
+  ).toBe(before);
+});
+
+test("navigation, deadline editing and reduced-motion layouts stay accessible", async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "Skip to workspace" }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
+  await page
+    .getByRole("navigation", { name: "Workspace navigation" })
+    .getByRole("link", { name: "Weekly planner" })
+    .click();
+  await expect(page).toHaveURL(/#planner$/);
+  await expect(
+    page.getByRole("heading", { name: "Weekly study planner" }),
+  ).toBeInViewport();
+  await page.locator(".deadline-link").first().click();
+  await expect(
+    page.getByRole("heading", { name: "Edit assignment", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Assignment name", { exact: true }),
+  ).toBeFocused();
+  await page.getByRole("button", { name: "Cancel editing" }).click();
+  for (const width of [320, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page
+      .getByRole("navigation", { name: "Workspace navigation" })
+      .getByRole("link", { name: "Overview", exact: true })
+      .click();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await page.evaluate(
+        () => getComputedStyle(document.documentElement).scrollBehavior,
+      ),
+    ).toBe("auto");
+    await page.screenshot({
+      path: testInfo.outputPath(`dashboard-${width}.png`),
+    });
+  }
+});
+
+test("empty workspace has honest zero summaries and usable assignment entry", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "study-adapt-research-v1",
+      JSON.stringify({
+        tasks: [],
+        availability: [0, 0, 0, 0, 0, 0, 0],
+        weeklyStress: {},
+      }),
+    ),
+  );
+  await page.reload();
+  await expect(page.locator(".summary-grid")).toContainText(
+    "No available study hours set",
+  );
+  await expect(
+    page.getByRole("region", { name: "Courses", exact: true }),
+  ).toContainText("Add an assignment");
+  await expect(
+    page.getByRole("region", { name: "Assignments", exact: true }),
+  ).toContainText("No assignments yet");
+  await page
+    .getByRole("link", { name: "Add an assignment", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Assignment name", { exact: true }),
+  ).toBeInViewport();
+});
+
+test("scheduling model example updates estimates without changing saved work", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  const saved = await page.evaluate(() =>
+    localStorage.getItem("study-adapt-research-v1"),
+  );
+  const sessions = await page.locator(".session").allTextContents();
+  const comparison = await page
+    .getByRole("region", { name: "Model comparison", exact: true })
+    .textContent();
+  await page
+    .getByRole("navigation", { name: "Workspace navigation" })
+    .getByRole("link", { name: "Scheduling Model", exact: true })
+    .click();
+  const model = page.getByRole("region", {
+    name: "Scheduling Model",
+    exact: true,
+  });
+  await expect(page).toHaveURL(/#scheduling-model$/);
+  await expect(
+    model.getByRole("heading", { name: "Scheduling Model", exact: true }),
+  ).toBeInViewport();
+  await expect(model).toContainText("not a validated prediction model");
+  await expect(model).toContainText("Provisional coefficients");
+  const results = model.locator(".example-results > div");
+  await expect(results.nth(0)).toContainText("4 hours");
+  await expect(results.nth(1)).toContainText("2 hours");
+  await model
+    .getByRole("combobox", { name: "Example difficulty" })
+    .selectOption("5");
+  await model
+    .getByRole("combobox", { name: "Example weekly stress" })
+    .selectOption("5");
+  await expect(results.nth(0)).toContainText("5.2 hours");
+  await expect(results.nth(1)).toContainText("2.6 hours");
+  await model
+    .getByRole("combobox", { name: "Example difficulty" })
+    .selectOption("1");
+  await model
+    .getByRole("combobox", { name: "Example weekly stress" })
+    .selectOption("1");
+  await expect(results.nth(0)).toContainText("2.8 hours");
+  await model
+    .getByRole("spinbutton", { name: "Example instructor hours" })
+    .fill("8");
+  await expect(results.nth(0)).toContainText("5.6 hours");
+  await expect(results.nth(1)).toContainText("2.8 hours");
+  for (const invalid of ["", "-1", "201"]) {
+    await model
+      .getByRole("spinbutton", { name: "Example instructor hours" })
+      .fill(invalid);
+    await expect(
+      model.getByRole("spinbutton", { name: "Example instructor hours" }),
+    ).toHaveAttribute("aria-invalid", "true");
+    await expect(results.nth(0)).toContainText("—");
+    await expect(model).toContainText(
+      "Enter instructor hours from 0.25 to 200.",
+    );
+  }
+  await model
+    .getByRole("spinbutton", { name: "Example instructor hours" })
+    .fill("4");
+  expect(
+    await page.evaluate(() => localStorage.getItem("study-adapt-research-v1")),
+  ).toBe(saved);
+  expect(await page.locator(".session").allTextContents()).toEqual(sessions);
+  expect(
+    await page
+      .getByRole("region", { name: "Model comparison", exact: true })
+      .textContent(),
+  ).toBe(comparison);
+  await expect(
+    model.getByRole("link", { name: "Research notes" }),
+  ).toHaveAttribute("href", /docs\/research-notes\.md$/);
+  await page.evaluate(() => document.fonts.ready);
+  await model.screenshot({ path: testInfo.outputPath("scheduling-model.png") });
+  await model.getByRole("link", { name: "Compare the models" }).click();
+  await expect(page).toHaveURL(/#research$/);
+});

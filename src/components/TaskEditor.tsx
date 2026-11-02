@@ -41,8 +41,11 @@ export default function TaskEditor({
       id="assignment-input"
       aria-labelledby="input-heading"
     >
+      <span className="eyebrow">
+        {editing ? "Make an adjustment" : "Start with an estimate"}
+      </span>
       <h2 id="input-heading">
-        {editing ? "Edit assignment" : "1. Enter an assignment"}
+        {editing ? "Edit assignment" : "New assignment"}
       </h2>
       <p className="muted">
         Use the instructor’s expected time as a starting point, then add the
